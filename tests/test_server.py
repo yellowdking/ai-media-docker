@@ -150,8 +150,8 @@ class ServerApiAuthAndCleanupTestCase(unittest.TestCase):
         }
         os.environ["DATA_DIR"] = str(self.tmp)
         os.environ["ADMIN_USER"] = "admin"
-        os.environ["ADMIN_PASSWORD"] = "test-strong-pass-123"
-        os.environ["SESSION_SECRET"] = "unit-test-session-secret"
+        os.environ["ADMIN_PASSWORD"] = "dummy-unit-pass"
+        os.environ["SESSION_SECRET"] = "dummy-unit-session-key"
         db.init_db()
         self.client = TestClient(server_main.app)
 
@@ -164,7 +164,7 @@ class ServerApiAuthAndCleanupTestCase(unittest.TestCase):
                 os.environ[k] = v
         shutil.rmtree(self.tmp, ignore_errors=True)
 
-    def _login(self, password: str = "test-strong-pass-123", remember: bool = True):
+    def _login(self, password: str = "dummy-unit-pass", remember: bool = True):
         return self.client.post(
             "/api/auth/login",
             json={"username": "admin", "password": password, "remember": remember},
@@ -231,7 +231,8 @@ class ServerApiAuthAndCleanupTestCase(unittest.TestCase):
         r_after = self.client.get("/api/articles")
         self.assertEqual(r_after.status_code, 401)
 
-        basic_token = base64.b64encode(b"admin:test-strong-pass-123").decode("ascii")
+        # HTTP Basic Auth header remains compatible for scripts
+        basic_token = base64.b64encode(b"admin:dummy-unit-pass").decode("ascii")
         r_basic = self.client.get("/api/articles", headers={"Authorization": f"Basic {basic_token}"})
         self.assertEqual(r_basic.status_code, 200)
 
@@ -266,8 +267,8 @@ class ServerApiAuthAndCleanupTestCase(unittest.TestCase):
         updated = self.client.put(
             "/api/config",
             json={
-                "wechat_appid": "wx_unit_test_appid",
-                "wechat_appsecret": "unit_test_secret_9876",
+                "wechat_appid": "dummy_unit_appid",
+                "wechat_appsecret": "dummy_unit_val_9876",
                 "wechat_mock_mode": False,
                 "data_retain_days": 14,
             },
@@ -333,15 +334,76 @@ class ServerApiAuthAndCleanupTestCase(unittest.TestCase):
         self.assertEqual(arts[0]["cover_path"], "")
         self.assertEqual(arts[0]["cover_url"], "")
 
+        # Manual cleanup pushed-media endpoint
         clean_res = self.client.post("/api/cleanup/pushed-media")
         self.assertEqual(clean_res.status_code, 200)
         self.assertTrue(clean_res.json()["ok"])
         self.assertEqual(clean_res.json()["articles_checked"], 1)
 
+        # Delete news item endpoint
         del_res = self.client.delete("/api/news/news-del-1")
         self.assertEqual(del_res.status_code, 200)
         self.assertTrue(del_res.json()["ok"])
         self.assertEqual(self.client.delete("/api/news/news-del-1").status_code, 404)
+
+    def test_multi_slot_articles_draft_and_cleanup(self) -> None:
+        self._login()
+        self.client.put(
+            "/api/settings",
+            json={"wechat_appid": "dummy_slot_appid", "wechat_appsecret": "dummy_slot_val", "wechat_mock_mode": False},
+        )
+        dirs = db.ensure_data_dirs()
+        ts = db.now_iso()
+        slots = ["2026-11-26-01", "2026-11-26-02"]
+        for key in slots:
+            art_dir = dirs["articles"] / key
+            inc_dir = dirs["incoming"] / key
+            art_dir.mkdir(parents=True, exist_ok=True)
+            inc_dir.mkdir(parents=True, exist_ok=True)
+            (art_dir / "cover.png").write_bytes(b"\x89PNG" + b"a" * 512)
+            (art_dir / "article.html").write_text(f"<p>{key}</p>", encoding="utf-8")
+            (inc_dir / "cover.png").write_bytes(b"\x89PNG" + b"b" * 512)
+            with db.get_conn() as conn:
+                conn.execute(
+                    """
+                    INSERT INTO articles (date, title, cover_path, status, ingested_at, updated_at)
+                    VALUES (?, ?, ?, 'ready', ?, ?)
+                    """,
+                    (key, f"Multi Article {key}", f"articles/{key}/cover.png", ts, ts),
+                )
+
+        # Invalid slot 00 rejected
+        bad_res = self.client.post("/api/wechat/draft/2026-11-26-00")
+        self.assertEqual(bad_res.status_code, 400)
+
+        fake_real = {
+            "ok": True,
+            "mode": "real",
+            "media_id": "slot_draft_id",
+            "thumb_media_id": "slot_thumb_id",
+            "message": "真实草稿上传成功",
+            "response": {"media_id": "slot_draft_id"},
+        }
+        with patch.object(server_main, "upload_wechat_draft", new=AsyncMock(return_value=fake_real)):
+            for key in slots:
+                r = self.client.post(f"/api/wechat/draft/{key}")
+                self.assertEqual(r.status_code, 200)
+                self.assertTrue(r.json()["ok"])
+                self.assertFalse((dirs["articles"] / key / "cover.png").exists())
+                self.assertFalse((dirs["incoming"] / key).exists())
+
+        # Expired slotted directory & row cleaned up by cleanup_old_data
+        old_key = "2020-01-01-03"
+        (dirs["articles"] / old_key).mkdir(parents=True, exist_ok=True)
+        (dirs["articles"] / old_key / "article.md").write_text("old", encoding="utf-8")
+        with db.get_conn() as conn:
+            conn.execute(
+                "INSERT INTO articles (date, title, status, ingested_at, updated_at) VALUES (?, 'Old Slot', 'ready', ?, ?)",
+                (old_key, ts, ts),
+            )
+        clean = db.cleanup_old_data(retain_days=7, trigger="manual")
+        self.assertIn(old_key, clean["removed_articles"])
+        self.assertFalse((dirs["articles"] / old_key).exists())
 
 
 if __name__ == "__main__":

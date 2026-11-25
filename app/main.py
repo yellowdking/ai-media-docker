@@ -124,8 +124,8 @@ def _get_docker_bridge_gateway() -> str | None:
 
     When the Debian host executes `curl http://127.0.0.1:8088/...` over SSH,
     docker-proxy forwards the host-loopback connection into the container from
-    the bridge gateway IP (e.g. 172.20.0.1), whereas LAN traffic arrives with
-    its real LAN source IP (e.g. 192.168.5.x) via iptables DNAT.
+    the Docker bridge gateway IP, whereas LAN traffic arrives with its real
+    LAN source IP (e.g. RFC 5737 192.0.2.x) via iptables DNAT.
     """
     global _CACHED_DOCKER_GATEWAY
     if _CACHED_DOCKER_GATEWAY is not None:
@@ -328,7 +328,7 @@ async def lifespan(_app: FastAPI):
 
 app = FastAPI(
     title="AI Media Debian Backend",
-    version="1.2.1",
+    version="1.2.2",
     lifespan=lifespan,
 )
 

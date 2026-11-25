@@ -1,10 +1,11 @@
-# AI Media Docker Server（微信公众号草稿管理后台 v1.1.0）
+# AI Media Docker Server（微信公众号草稿管理后台 v1.2.2）
 
 轻量级自托管 Debian Docker 服务，专为 **Windows Antigravity 本地生产 + Debian VPS 接收与草稿箱管理** 架构打造，方便随时一键迁移到任意新机器。
 
 ## 核心特性
 
 - **零付费 AI API / 零模型 SDK**：容器内仅运行 FastAPI + SQLite（WAL 模式）+ `httpx`，绝不调用任何大模型 API。
+- **每日多篇分槽入库（`YYYY-MM-DD-01`..`05`）**：同时兼容单篇 `YYYY-MM-DD` 与每日 4-5 篇分槽目录 `YYYY-MM-DD-NN`（如 `2026-11-26-01`..`05`），入库校验、预览、推草稿及自动清图均按槽位独立追踪。
 - **严格草稿箱模式（`draft_only`）**：微信公众号接口仅上传永久封面素材与草稿箱（`draft/add`），**严禁自动群发**，支持 `access_token` 缓存/过期刷新与失败队列指数退避重试。
 - **独立登录页 + HMAC-SHA256 Cookie 会话认证**：
   - 替代浏览器原生弹窗，提供清爽中文登录页，签发 `HttpOnly` + `SameSite=Lax` 的 `ai_media_session` Cookie（默认 24 小时，勾选「记住登录」7 天），签名密钥由 `ADMIN_PASSWORD`（及可选 `SESSION_SECRET`）经 SHA-256/HMAC 派生；
@@ -38,8 +39,10 @@ cat .env
 # 3. 如尚未创建 npm-network，先创建外部网络
 docker network inspect npm-network >/dev/null 2>&1 || docker network create npm-network
 
-# 4. 构建并启动
+# 4. 构建并启动（或拉取预构建镜像 ghcr.io/yellowdking/ai-media-docker:latest）
 docker compose up -d --build
+# 可选预构建镜像拉取示例：
+# docker pull ghcr.io/yellowdking/ai-media-docker:latest
 
 # 5. 验证健康状态
 curl -sf http://127.0.0.1:8088/health

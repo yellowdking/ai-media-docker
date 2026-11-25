@@ -22,7 +22,7 @@ import socket
 import struct
 import time
 from contextlib import asynccontextmanager
-from datetime import timedelta
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -58,7 +58,7 @@ from .wechat import (
 
 logger = logging.getLogger("ai_media.server")
 
-DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}(?:-\d{2})?$")
 SAFE_FILENAME_RE = re.compile(r"^[A-Za-z0-9._-]+$")
 REQUIRED_ARTICLE_FILES = (
     "article.md",
@@ -78,7 +78,16 @@ _CACHED_DOCKER_GATEWAY: str | None = None
 
 def _validate_date(date_str: str) -> str:
     if not DATE_RE.match(date_str):
-        raise HTTPException(status_code=400, detail=f"无效的日期格式（需要 YYYY-MM-DD）: {date_str}")
+        raise HTTPException(
+            status_code=400,
+            detail=f"无效的日期格式（需要 YYYY-MM-DD 或 YYYY-MM-DD-NN）: {date_str}",
+        )
+    try:
+        datetime.strptime(date_str[:10], "%Y-%m-%d")
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=f"无效的日历日期: {date_str}") from exc
+    if len(date_str) == 13 and not (1 <= int(date_str[11:]) <= 99):
+        raise HTTPException(status_code=400, detail=f"无效的文章序号（需要 01-99）: {date_str}")
     return date_str
 
 
@@ -111,6 +120,13 @@ def _is_masked_secret(value: str, current_secret: str = "") -> bool:
 
 
 def _get_docker_bridge_gateway() -> str | None:
+    """Detect the container's default Docker bridge gateway from /proc/net/route.
+
+    When the Debian host executes `curl http://127.0.0.1:8088/...` over SSH,
+    docker-proxy forwards the host-loopback connection into the container from
+    the bridge gateway IP (e.g. 172.20.0.1), whereas LAN traffic arrives with
+    its real LAN source IP (e.g. 192.168.5.x) via iptables DNAT.
+    """
     global _CACHED_DOCKER_GATEWAY
     if _CACHED_DOCKER_GATEWAY is not None:
         return _CACHED_DOCKER_GATEWAY or None
@@ -147,6 +163,7 @@ def _is_loopback_host_header(host_header: str) -> bool:
 
 
 def _require_localhost(request: Request) -> None:
+    """Allow internal ingest ONLY from container loopback or Debian host loopback (127.0.0.1 / ::1)."""
     if request.headers.get("x-forwarded-for") or request.headers.get("x-real-ip"):
         raise HTTPException(
             status_code=403,
@@ -170,11 +187,13 @@ def _require_localhost(request: Request) -> None:
 
 
 def _compute_next_retry_at(attempts: int) -> str:
+    """Exponential backoff for queued WeChat draft uploads (2m, 4m, 8m, ..., capped at 60m)."""
     delay_seconds = min(3600, 120 * (2 ** max(0, attempts - 1)))
     return (now_shanghai() + timedelta(seconds=delay_seconds)).isoformat(timespec="seconds")
 
 
 def _parse_manifest_files(manifest: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    """Parse manifest.json files mapping flexibly."""
     raw_files = manifest.get("files")
     parsed: dict[str, dict[str, Any]] = {}
     if isinstance(raw_files, dict):
@@ -204,6 +223,7 @@ def _parse_manifest_files(manifest: dict[str, Any]) -> dict[str, dict[str, Any]]
 
 
 async def _daily_backup_loop() -> None:
+    """Background loop for daily SQLite backup and >7d disk cleanup (incoming/ + articles/)."""
     await asyncio.sleep(15)
     while True:
         try:
@@ -219,6 +239,7 @@ async def _daily_backup_loop() -> None:
 
 
 async def _process_due_draft_retries(*, ignore_schedule: bool = False) -> dict[str, Any]:
+    """Retry queued WeChat draft tasks that are due (safe to run while Windows is offline)."""
     with get_conn() as conn:
         cfg = get_settings_dict(conn)
         if not ignore_schedule and cfg.get("draft_retry_enabled", "true").lower() != "true":
@@ -278,6 +299,7 @@ async def _process_due_draft_retries(*, ignore_schedule: bool = False) -> dict[s
 
 
 async def _draft_retry_loop() -> None:
+    """Lightweight background retry loop for queued WeChat draft uploads (Windows-offline resilient)."""
     await asyncio.sleep(20)
     while True:
         try:
@@ -306,7 +328,7 @@ async def lifespan(_app: FastAPI):
 
 app = FastAPI(
     title="AI Media Debian Backend",
-    version="1.1.0",
+    version="1.2.1",
     lifespan=lifespan,
 )
 
@@ -653,6 +675,7 @@ async def ingest_article(date: str, request: Request) -> dict[str, Any]:
     if not manifest_files:
         raise HTTPException(status_code=400, detail="manifest.json 未包含有效文件清单")
 
+    # 1. Verify all 6 required files are present in manifest and on disk, and verify SHA-256 for every listed file
     missing_required = [f for f in REQUIRED_ARTICLE_FILES if f not in manifest_files]
     if missing_required:
         raise HTTPException(
@@ -686,6 +709,7 @@ async def ingest_article(date: str, request: Request) -> dict[str, Any]:
         verified_files.append(fname)
         file_hashes[fname] = (actual_sha, actual_size)
 
+    # 2. Copy verified files from /data/incoming/{date}/ to /data/articles/{date}/
     target_dir = dirs["articles"] / date_str
     target_dir.mkdir(parents=True, exist_ok=True)
     files_to_copy = set(verified_files) | {"manifest.json"}
@@ -698,6 +722,7 @@ async def ingest_article(date: str, request: Request) -> dict[str, Any]:
         if src.exists() and src.is_file():
             shutil.copy2(src, target_dir / fname)
 
+    # 3. Parse article metadata, sources, review, markdown
     try:
         metadata = json.loads((target_dir / "metadata.json").read_text(encoding="utf-8"))
         sources_data = json.loads((target_dir / "sources.json").read_text(encoding="utf-8"))
@@ -722,6 +747,7 @@ async def ingest_article(date: str, request: Request) -> dict[str, Any]:
     images_ingested = 0
 
     with get_conn() as conn:
+        # Preserve existing draft/publish status if re-ingested
         existing = conn.execute("SELECT status FROM articles WHERE date = ?", (date_str,)).fetchone()
         article_status = existing["status"] if existing else "ready"
 
@@ -776,6 +802,7 @@ async def ingest_article(date: str, request: Request) -> dict[str, Any]:
             ),
         )
 
+        # Register image files in articles/{date}/
         for fpath in sorted(target_dir.iterdir()):
             if fpath.is_file() and fpath.suffix.lower() in IMAGE_EXTS:
                 sha_hex, size_b = file_hashes.get(fpath.name, (_sha256_file(fpath), fpath.stat().st_size))
@@ -793,6 +820,8 @@ async def ingest_article(date: str, request: Request) -> dict[str, Any]:
                 )
                 images_ingested += 1
 
+        # Optional filtered.json -> news_items + topics (grouped by calendar date YYYY-MM-DD)
+        base_date = date_str[:10]
         filtered_path = target_dir / "filtered.json"
         if filtered_path.exists():
             try:
@@ -815,7 +844,7 @@ async def ingest_article(date: str, request: Request) -> dict[str, Any]:
                         """,
                         (
                             item_id,
-                            date_str,
+                            base_date,
                             str(item.get("title") or ""),
                             str(item.get("url") or ""),
                             str(item.get("source_id") or ""),
@@ -831,8 +860,9 @@ async def ingest_article(date: str, request: Request) -> dict[str, Any]:
                     )
                     news_ingested += 1
 
+                # Seed top 5 candidates as topics for that date if not already seeded
                 existing_topics = conn.execute(
-                    "SELECT COUNT(*) AS c FROM topics WHERE date = ?", (date_str,)
+                    "SELECT COUNT(*) AS c FROM topics WHERE date = ?", (base_date,)
                 ).fetchone()["c"]
                 if existing_topics == 0:
                     for item in candidates[:5]:
@@ -844,7 +874,7 @@ async def ingest_article(date: str, request: Request) -> dict[str, Any]:
                             VALUES (?, ?, ?, ?, ?, ?, 'candidate', '', ?, ?)
                             """,
                             (
-                                date_str,
+                                base_date,
                                 str(item.get("title") or ""),
                                 str(item.get("category") or "AI新闻"),
                                 str(item.get("url") or ""),
@@ -858,6 +888,7 @@ async def ingest_article(date: str, request: Request) -> dict[str, Any]:
             except Exception as exc:
                 add_task_log(conn, date_str, "ingest", "warning", f"filtered.json 解析跳过: {exc}", level="WARN")
 
+        # Ensure the produced article itself is tracked in topics as produced
         prod_topic = conn.execute(
             "SELECT id FROM topics WHERE date = ? AND title = ? LIMIT 1", (date_str, title)
         ).fetchone()
@@ -871,6 +902,7 @@ async def ingest_article(date: str, request: Request) -> dict[str, Any]:
             )
             topics_ingested += 1
 
+        # Optional state.json -> task_logs
         state_path = target_dir / "state.json"
         if state_path.exists():
             try:

@@ -1,6 +1,7 @@
 services:
   ai-media-server:
-    build: .
+    image: ${AI_MEDIA_IMAGE:-ghcr.io/yellowdking/ai-media-docker:latest}
+    pull_policy: always
     container_name: ai-media-server
     restart: unless-stopped
     ports:
@@ -12,6 +13,7 @@ services:
       - DATA_DIR=/data
       - ADMIN_USER=${ADMIN_USER:-admin}
       - ADMIN_PASSWORD=${ADMIN_PASSWORD:-}
+      - SESSION_SECRET=${SESSION_SECRET:-}
     volumes:
       - /opt/ai-media/data:/data
     healthcheck:

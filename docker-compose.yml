@@ -1,6 +1,6 @@
 services:
   ai-media-server:
-    image: ${AI_MEDIA_IMAGE:-ghcr.io/yellowdking/ai-media-docker:latest}
+    image: ${AI_MEDIA_IMAGE:-bbplin/ai-media-server:latest}
     pull_policy: always
     container_name: ai-media-server
     restart: unless-stopped

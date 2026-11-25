@@ -328,7 +328,7 @@ async def lifespan(_app: FastAPI):
 
 app = FastAPI(
     title="AI Media Debian Backend",
-    version="1.2.3",
+    version="1.2.4",
     lifespan=lifespan,
 )
 

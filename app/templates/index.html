@@ -57,6 +57,7 @@
     .muted { color: var(--muted); }
     .nowrap { white-space: nowrap; }
 
+    /* ---------- Boot Screen ---------- */
     .boot-screen {
       min-height: 100vh;
       display: flex;
@@ -77,6 +78,7 @@
     }
     @keyframes spin { to { transform: rotate(360deg); } }
 
+    /* ---------- Login Screen ---------- */
     .login-screen {
       min-height: 100vh;
       display: flex;
@@ -116,8 +118,17 @@
       box-shadow: 0 10px 20px rgba(37, 99, 235, 0.28);
       margin-bottom: 14px;
     }
-    .login-brand h1 { font-size: 20px; font-weight: 700; letter-spacing: -0.01em; color: var(--text); }
-    .login-brand p { font-size: 13px; color: var(--muted); margin-top: 5px; }
+    .login-brand h1 {
+      font-size: 20px;
+      font-weight: 700;
+      letter-spacing: -0.01em;
+      color: var(--text);
+    }
+    .login-brand p {
+      font-size: 13px;
+      color: var(--muted);
+      margin-top: 5px;
+    }
     .login-foot {
       margin-top: 20px;
       padding-top: 14px;
@@ -127,6 +138,7 @@
       color: var(--muted);
     }
 
+    /* ---------- Forms & Inputs ---------- */
     .field { margin-bottom: 15px; }
     .field:last-child { margin-bottom: 0; }
     .field label {
@@ -139,7 +151,11 @@
       color: var(--text-secondary);
       margin-bottom: 6px;
     }
-    .field-hint { font-size: 12px; color: var(--muted); margin-top: 5px; }
+    .field-hint {
+      font-size: 12px;
+      color: var(--muted);
+      margin-top: 5px;
+    }
     input[type="text"],
     input[type="password"],
     input[type="number"],
@@ -163,7 +179,11 @@
     }
     textarea { min-height: 76px; resize: vertical; }
 
-    .pwd-wrap { position: relative; display: flex; align-items: center; }
+    .pwd-wrap {
+      position: relative;
+      display: flex;
+      align-items: center;
+    }
     .pwd-wrap input { padding-right: 40px; }
     .pwd-toggle {
       position: absolute;
@@ -199,6 +219,7 @@
       cursor: pointer;
     }
 
+    /* Switch control */
     .switch-row {
       display: flex;
       align-items: center;
@@ -211,7 +232,13 @@
     }
     .switch-meta strong { display: block; font-size: 13px; color: var(--text); }
     .switch-meta span { display: block; font-size: 12px; color: var(--muted); margin-top: 2px; }
-    .switch { position: relative; display: inline-block; width: 44px; height: 24px; flex-shrink: 0; }
+    .switch {
+      position: relative;
+      display: inline-block;
+      width: 44px;
+      height: 24px;
+      flex-shrink: 0;
+    }
     .switch input { opacity: 0; width: 0; height: 0; }
     .switch-slider {
       position: absolute;
@@ -236,11 +263,31 @@
     .switch input:checked + .switch-slider { background: var(--primary); }
     .switch input:checked + .switch-slider::before { transform: translateX(20px); }
 
-    .alert { padding: 10px 12px; border-radius: var(--radius-sm); font-size: 13px; line-height: 1.55; margin-bottom: 14px; }
-    .alert-error { background: #fef2f2; border: 1px solid #fecaca; color: #b91c1c; }
-    .alert-info { background: #eff6ff; border: 1px solid #bfdbfe; color: #1e40af; }
-    .alert-warn { background: #fffbeb; border: 1px solid #fde68a; color: #92400e; }
+    /* Alerts */
+    .alert {
+      padding: 10px 12px;
+      border-radius: var(--radius-sm);
+      font-size: 13px;
+      line-height: 1.55;
+      margin-bottom: 14px;
+    }
+    .alert-error {
+      background: #fef2f2;
+      border: 1px solid #fecaca;
+      color: #b91c1c;
+    }
+    .alert-info {
+      background: #eff6ff;
+      border: 1px solid #bfdbfe;
+      color: #1e40af;
+    }
+    .alert-warn {
+      background: #fffbeb;
+      border: 1px solid #fde68a;
+      color: #92400e;
+    }
 
+    /* ---------- Buttons ---------- */
     .btn {
       display: inline-flex;
       align-items: center;
@@ -281,6 +328,7 @@
     }
     .btn-link:hover { color: var(--text); text-decoration: underline; }
 
+    /* ---------- Badges & Pills ---------- */
     .badge {
       display: inline-flex;
       align-items: center;
@@ -296,15 +344,34 @@
     .badge-green { background: #dcfce7; color: #15803d; }
     .badge-yellow { background: #fef3c7; color: #b45309; }
     .badge-red { background: #fee2e2; color: #b91c1c; }
-    .badge-alert { background: #dc2626; color: #fff; box-shadow: 0 1px 2px rgba(220, 38, 38, 0.25); }
+    .badge-alert {
+      background: #dc2626;
+      color: #fff;
+      box-shadow: 0 1px 2px rgba(220, 38, 38, 0.25);
+    }
     .badge-gray { background: #f1f5f9; color: #475569; }
-    .badge-outline { background: #f8fafc; color: #64748b; border: 1px solid #cbd5e1; font-weight: 500; }
-    .dot { width: 7px; height: 7px; border-radius: 50%; display: inline-block; flex-shrink: 0; }
+    .badge-outline {
+      background: #f8fafc;
+      color: #64748b;
+      border: 1px solid #cbd5e1;
+      font-weight: 500;
+    }
+    .dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      display: inline-block;
+      flex-shrink: 0;
+    }
     .dot-green { background: #16a34a; }
     .dot-red { background: #dc2626; }
     .dot-yellow { background: #d97706; }
 
-    .app-shell { display: flex; min-height: 100vh; }
+    /* ---------- App Shell Layout ---------- */
+    .app-shell {
+      display: flex;
+      min-height: 100vh;
+    }
     .sidebar {
       width: 232px;
       background: var(--sidebar);
@@ -318,7 +385,13 @@
       z-index: 40;
       transition: transform 0.22s ease;
     }
-    .sidebar-backdrop { display: none; position: fixed; inset: 0; background: rgba(15, 23, 42, 0.5); z-index: 35; }
+    .sidebar-backdrop {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(15, 23, 42, 0.5);
+      z-index: 35;
+    }
     .sidebar-brand {
       padding: 20px 18px 18px;
       border-bottom: 1px solid rgba(255, 255, 255, 0.08);
@@ -337,9 +410,27 @@
       justify-content: center;
       flex-shrink: 0;
     }
-    .sidebar-brand h1 { font-size: 15px; font-weight: 700; color: #fff; line-height: 1.25; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .sidebar-brand p { font-size: 11px; color: #94a3b8; margin-top: 2px; }
-    .nav { flex: 1; padding: 14px 10px; display: flex; flex-direction: column; gap: 4px; }
+    .sidebar-brand h1 {
+      font-size: 15px;
+      font-weight: 700;
+      color: #fff;
+      line-height: 1.25;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .sidebar-brand p {
+      font-size: 11px;
+      color: #94a3b8;
+      margin-top: 2px;
+    }
+    .nav {
+      flex: 1;
+      padding: 14px 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
     .nav-btn {
       width: 100%;
       background: transparent;
@@ -357,7 +448,11 @@
       font-weight: 500;
       transition: background 0.15s, color 0.15s;
     }
-    .nav-btn-left { display: inline-flex; align-items: center; gap: 10px; }
+    .nav-btn-left {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+    }
     .nav-btn:hover { background: var(--sidebar-hover); color: #fff; }
     .nav-btn.active { background: var(--sidebar-active); color: #fff; font-weight: 600; }
     .sidebar-foot {
@@ -371,7 +466,13 @@
     }
     .sidebar-foot strong { color: #e2e8f0; font-weight: 600; }
 
-    .main { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+    /* ---------- Main & Topbar ---------- */
+    .main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+    }
     .topbar {
       background: rgba(255, 255, 255, 0.94);
       backdrop-filter: blur(8px);
@@ -387,8 +488,18 @@
       z-index: 20;
       flex-wrap: wrap;
     }
-    .topbar-left { display: flex; align-items: center; gap: 10px; min-width: 0; }
-    .topbar-left h2 { font-size: 17px; font-weight: 700; color: var(--text); white-space: nowrap; }
+    .topbar-left {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      min-width: 0;
+    }
+    .topbar-left h2 {
+      font-size: 17px;
+      font-weight: 700;
+      color: var(--text);
+      white-space: nowrap;
+    }
     .mobile-menu-btn {
       display: none;
       width: 34px;
@@ -401,7 +512,12 @@
       align-items: center;
       justify-content: center;
     }
-    .topbar-right { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .topbar-right {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
     .pill {
       display: inline-flex;
       align-items: center;
@@ -419,7 +535,9 @@
     .pill-green { background: #f0fdf4; border-color: #bbf7d0; color: #15803d; }
     .pill-red { background: #fef2f2; border-color: #fecaca; color: #b91c1c; }
 
-    .logs-btn { position: relative; }
+    .logs-btn {
+      position: relative;
+    }
     .alert-dot {
       position: absolute;
       top: -3px;
@@ -433,7 +551,12 @@
     .alert-dot.error { display: block; background: var(--danger); }
     .alert-dot.warn { display: block; background: var(--warning); }
 
-    .content { padding: 20px 24px 40px; max-width: 1360px; width: 100%; }
+    /* ---------- Content & Cards ---------- */
+    .content {
+      padding: 20px 24px 40px;
+      max-width: 1360px;
+      width: 100%;
+    }
     .tab-panel { display: none; }
     .tab-panel.active { display: block; }
 
@@ -453,19 +576,62 @@
       margin-bottom: 14px;
       flex-wrap: wrap;
     }
-    .card-title { display: flex; align-items: center; gap: 8px; font-size: 15px; font-weight: 700; color: var(--text); }
-    .toolbar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-    .toolbar input[type="text"], .toolbar select { width: auto; padding: 7px 10px; font-size: 13px; }
+    .card-title {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--text);
+    }
+    .toolbar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .toolbar input[type="text"],
+    .toolbar select {
+      width: auto;
+      padding: 7px 10px;
+      font-size: 13px;
+    }
     .toolbar input[type="text"] { min-width: 210px; }
 
+    /* Tables */
     .table-wrap { overflow-x: auto; }
-    table { width: 100%; border-collapse: collapse; font-size: 13px; }
-    th, td { text-align: left; padding: 11px 10px; border-bottom: 1px solid var(--border); vertical-align: middle; }
-    th { background: #f8fafc; color: var(--muted); font-weight: 600; font-size: 12px; white-space: nowrap; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+    th, td {
+      text-align: left;
+      padding: 11px 10px;
+      border-bottom: 1px solid var(--border);
+      vertical-align: middle;
+    }
+    th {
+      background: #f8fafc;
+      color: var(--muted);
+      font-weight: 600;
+      font-size: 12px;
+      white-space: nowrap;
+    }
     tbody tr:last-child td { border-bottom: none; }
     tbody tr:hover td { background: #f8fafc; }
-    .row-actions { display: inline-flex; align-items: center; gap: 6px; flex-wrap: nowrap; }
-    .title-cell strong { display: block; color: var(--text); font-weight: 600; line-height: 1.45; }
+    .row-actions {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      flex-wrap: nowrap;
+    }
+    .title-cell strong {
+      display: block;
+      color: var(--text);
+      font-weight: 600;
+      line-height: 1.45;
+    }
     .title-cell .sub {
       color: var(--muted);
       font-size: 12px;
@@ -476,15 +642,42 @@
       -webkit-box-orient: vertical;
       overflow: hidden;
     }
-    .status-stack { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; }
-    .empty { text-align: center; padding: 40px 16px; color: var(--muted); font-size: 13px; }
+    .status-stack {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 5px;
+    }
+    .empty {
+      text-align: center;
+      padding: 40px 16px;
+      color: var(--muted);
+      font-size: 13px;
+    }
 
-    .form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px 18px; margin-bottom: 16px; }
-    .runtime-strip { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px; margin-bottom: 16px; }
-    .runtime-item { background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 10px 12px; }
+    /* Settings Grid */
+    .form-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 14px 18px;
+      margin-bottom: 16px;
+    }
+    .runtime-strip {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+      gap: 10px;
+      margin-bottom: 16px;
+    }
+    .runtime-item {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 10px 12px;
+    }
     .runtime-item .k { font-size: 11px; color: var(--muted); }
     .runtime-item .v { font-size: 14px; font-weight: 700; color: var(--text); margin-top: 3px; }
 
+    /* ---------- Modals ---------- */
     .modal-backdrop {
       position: fixed;
       inset: 0;
@@ -517,8 +710,19 @@
       justify-content: space-between;
       gap: 12px;
     }
-    .modal-head h3 { font-size: 16px; font-weight: 700; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .modal-body { padding: 18px 20px; overflow-y: auto; flex: 1; }
+    .modal-head h3 {
+      font-size: 16px;
+      font-weight: 700;
+      color: var(--text);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .modal-body {
+      padding: 18px 20px;
+      overflow-y: auto;
+      flex: 1;
+    }
     .modal-foot {
       padding: 13px 20px;
       border-top: 1px solid var(--border);
@@ -529,6 +733,7 @@
       background: #f8fafc;
     }
 
+    /* Onboarding Fullscreen Focus */
     .onboarding-screen {
       min-height: 100vh;
       display: flex;
@@ -551,8 +756,16 @@
     .onboarding-head { margin-bottom: 20px; }
     .onboarding-head h2 { font-size: 20px; font-weight: 700; margin-top: 8px; }
     .onboarding-head p { font-size: 13px; color: var(--muted); margin-top: 4px; }
-    .onboarding-actions { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 20px; flex-wrap: wrap; }
+    .onboarding-actions {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-top: 20px;
+      flex-wrap: wrap;
+    }
 
+    /* Article Preview Modal Content */
     .preview-meta {
       display: flex;
       flex-wrap: wrap;
@@ -564,9 +777,24 @@
       font-size: 12px;
       color: var(--muted);
     }
-    .sub-tabs { display: flex; gap: 6px; margin-bottom: 12px; flex-wrap: wrap; }
-    .sub-tab.active { background: var(--primary); color: #fff; border-color: var(--primary); }
-    .preview-iframe { width: 100%; height: 58vh; border: 1px solid var(--border); border-radius: var(--radius-sm); background: #fff; }
+    .sub-tabs {
+      display: flex;
+      gap: 6px;
+      margin-bottom: 12px;
+      flex-wrap: wrap;
+    }
+    .sub-tab.active {
+      background: var(--primary);
+      color: #fff;
+      border-color: var(--primary);
+    }
+    .preview-iframe {
+      width: 100%;
+      height: 58vh;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      background: #fff;
+    }
     .md-source {
       width: 100%;
       height: 58vh;
@@ -590,10 +818,21 @@
       margin-bottom: 12px;
       display: block;
     }
-    .meta-panel { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px; }
-    .meta-box { border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 14px; background: #f8fafc; font-size: 13px; }
+    .meta-panel {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 14px;
+    }
+    .meta-box {
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 14px;
+      background: #f8fafc;
+      font-size: 13px;
+    }
     .meta-box h4 { font-size: 13px; font-weight: 700; margin-bottom: 8px; }
 
+    /* ---------- Slide-over Task Log Drawer ---------- */
     .drawer-backdrop {
       position: fixed;
       inset: 0;
@@ -603,7 +842,10 @@
       pointer-events: none;
       transition: opacity 0.2s ease;
     }
-    .drawer-backdrop.open { opacity: 1; pointer-events: auto; }
+    .drawer-backdrop.open {
+      opacity: 1;
+      pointer-events: auto;
+    }
     .drawer {
       position: fixed;
       top: 0;
@@ -636,15 +878,47 @@
       flex-wrap: wrap;
       align-items: center;
     }
-    .drawer-filters select { width: auto; padding: 6px 10px; font-size: 13px; }
-    .drawer-body { flex: 1; overflow-y: auto; padding: 14px 20px 24px; }
-    .log-item { border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 10px 12px; margin-bottom: 9px; background: #fff; }
+    .drawer-filters select {
+      width: auto;
+      padding: 6px 10px;
+      font-size: 13px;
+    }
+    .drawer-body {
+      flex: 1;
+      overflow-y: auto;
+      padding: 14px 20px 24px;
+    }
+    .log-item {
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 10px 12px;
+      margin-bottom: 9px;
+      background: #fff;
+    }
     .log-item.log-error { border-left: 3px solid var(--danger); background: #fffbfb; }
     .log-item.log-warn { border-left: 3px solid var(--warning); background: #fffdf7; }
-    .log-item-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; margin-bottom: 5px; }
-    .log-item-meta { display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap; }
-    .log-item-msg { font-size: 13px; color: var(--text-secondary); word-break: break-word; line-height: 1.55; }
+    .log-item-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-bottom: 5px;
+    }
+    .log-item-meta {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+    .log-item-msg {
+      font-size: 13px;
+      color: var(--text-secondary);
+      word-break: break-word;
+      line-height: 1.55;
+    }
 
+    /* ---------- Toast ---------- */
     .toast {
       position: fixed;
       right: 22px;
@@ -663,9 +937,16 @@
     .toast.toast-success { border-left-color: #22c55e; }
     .toast.toast-error { background: #7f1d1d; border-left-color: #fca5a5; }
 
+    /* ---------- Responsive ---------- */
     @media (max-width: 860px) {
       .mobile-menu-btn { display: inline-flex; }
-      .sidebar { position: fixed; left: 0; top: 0; bottom: 0; transform: translateX(-100%); }
+      .sidebar {
+        position: fixed;
+        left: 0;
+        top: 0;
+        bottom: 0;
+        transform: translateX(-100%);
+      }
       .sidebar.mobile-open { transform: translateX(0); }
       .sidebar-backdrop.open { display: block; }
       .topbar { padding: 10px 14px; }
@@ -678,11 +959,13 @@
   </style>
 </head>
 <body>
+  <!-- Boot Loader -->
   <div id="boot-screen" class="boot-screen">
     <div class="spinner" aria-hidden="true"></div>
     <span>正在检查登录状态...</span>
   </div>
 
+  <!-- 1. Login Screen -->
   <section id="login-screen" class="login-screen hidden" aria-label="管理员登录">
     <div class="login-card">
       <div class="login-brand">
@@ -729,10 +1012,13 @@
         <button type="submit" id="login-submit" class="btn btn-primary btn-block">登录后台</button>
       </form>
 
-      <div class="login-foot">仅同步至微信公众号草稿箱，绝不自动群发</div>
+      <div class="login-foot">
+        仅同步至微信公众号草稿箱，绝不自动群发
+      </div>
     </div>
   </section>
 
+  <!-- 2. First-Login WeChat Onboarding Setup -->
   <section id="onboarding-screen" class="onboarding-screen hidden" aria-label="首次配置微信公众号">
     <div class="onboarding-card">
       <div class="onboarding-head">
@@ -750,7 +1036,7 @@
       <form id="onboarding-form">
         <div class="field">
           <label for="ob-appid">微信公众号 AppID</label>
-          <input type="text" id="ob-appid" placeholder="例如 wx1234567890abcdef" autocomplete="off" />
+          <input type="text" id="ob-appid" placeholder="请输入公众号 AppID（以 wx 开头）" autocomplete="off" />
         </div>
         <div class="field">
           <label for="ob-secret">微信公众号 AppSecret</label>
@@ -785,6 +1071,7 @@
     </div>
   </section>
 
+  <!-- 3. Main Admin Shell -->
   <div id="app-shell" class="app-shell hidden">
     <div id="sidebar-backdrop" class="sidebar-backdrop" onclick="closeMobileSidebar()"></div>
 
@@ -855,6 +1142,7 @@
     </aside>
 
     <div class="main">
+      <!-- Top Bar -->
       <header class="topbar">
         <div class="topbar-left">
           <button type="button" class="mobile-menu-btn" id="mobile-menu-btn" onclick="openMobileSidebar()" aria-label="打开菜单">
@@ -906,6 +1194,7 @@
       </header>
 
       <main class="content">
+        <!-- Tab 1: 资讯管理 -->
         <section class="tab-panel active" id="tab-news">
           <div class="card">
             <div class="card-header">
@@ -942,6 +1231,7 @@
           </div>
         </section>
 
+        <!-- Tab 2: 文章管理 -->
         <section class="tab-panel" id="tab-articles">
           <div class="card">
             <div class="card-header">
@@ -970,7 +1260,9 @@
           </div>
         </section>
 
+        <!-- Tab 3: 发布记录 -->
         <section class="tab-panel" id="tab-publish">
+          <!-- Queued / Failed Draft Retry Section (shown only when needed) -->
           <div class="card hidden" id="publish-retry-card" style="border-color:#fde68a;">
             <div class="card-header">
               <div class="card-title">
@@ -999,6 +1291,7 @@
             </div>
           </div>
 
+          <!-- Publish Records Table -->
           <div class="card">
             <div class="card-header">
               <div class="card-title">
@@ -1025,6 +1318,7 @@
           </div>
         </section>
 
+        <!-- Tab 4: 系统配置 -->
         <section class="tab-panel" id="tab-settings">
           <div class="card">
             <div class="card-header">
@@ -1045,7 +1339,7 @@
             <div class="form-grid">
               <div class="field">
                 <label for="cfg-appid">微信公众号 AppID</label>
-                <input type="text" id="cfg-appid" placeholder="wx..." autocomplete="off" />
+                <input type="text" id="cfg-appid" placeholder="请输入公众号 AppID（以 wx 开头）" autocomplete="off" />
               </div>
               <div class="field">
                 <label for="cfg-secret">
@@ -1108,6 +1402,7 @@
             </div>
           </div>
 
+          <!-- Compact Backup List -->
           <div class="card">
             <div class="card-header">
               <div class="card-title">
@@ -1135,6 +1430,7 @@
     </div>
   </div>
 
+  <!-- Article Preview Modal -->
   <div class="modal-backdrop" id="article-modal" onclick="if(event.target===this)closeArticleModal()">
     <div class="modal-box">
       <div class="modal-head">
@@ -1148,6 +1444,7 @@
     </div>
   </div>
 
+  <!-- Mark Manual Published Modal -->
   <div class="modal-backdrop" id="publish-modal" onclick="if(event.target===this)closePublishModal()">
     <div class="modal-box modal-sm">
       <div class="modal-head">
@@ -1174,6 +1471,7 @@
     </div>
   </div>
 
+  <!-- Slide-over Task Log Drawer -->
   <div class="drawer-backdrop" id="logs-drawer-backdrop" onclick="closeLogsDrawer()"></div>
   <aside class="drawer" id="logs-drawer" aria-label="任务日志抽屉">
     <div class="drawer-head">
@@ -1250,6 +1548,7 @@
     let modalViewMode = 'html';
     let pendingPublishRecordId = null;
 
+    // ---------- Utilities ----------
     function esc(s) {
       return String(s ?? '').replace(/[&<>"']/g, m => ({
         '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
@@ -1341,6 +1640,7 @@
       </style></head><body>${htmlBody || '<p>暂无 HTML 正文内容</p>'}</body></html>`;
     }
 
+    // ---------- API Client with 401 Session Handling ----------
     async function api(url, opts = {}) {
       const { skipAuthRedirect, headers, ...rest } = opts;
       const res = await fetch(url, {
@@ -1361,6 +1661,7 @@
       return data;
     }
 
+    // ---------- View Transitions ----------
     function showBoot() {
       document.getElementById('boot-screen').classList.remove('hidden');
       document.getElementById('login-screen').classList.add('hidden');
@@ -1426,6 +1727,7 @@
       await refreshCurrentTab();
     }
 
+    // ---------- Auth & Onboarding Handlers ----------
     document.getElementById('login-pwd-toggle').addEventListener('click', () => {
       const input = document.getElementById('login-password');
       const show = input.type === 'password';
@@ -1538,6 +1840,7 @@
       }
     }
 
+    // ---------- Navigation & Mobile Sidebar ----------
     function openMobileSidebar() {
       document.getElementById('sidebar').classList.add('mobile-open');
       document.getElementById('sidebar-backdrop').classList.add('open');
@@ -1563,6 +1866,7 @@
       refreshCurrentTab();
     }
 
+    // ---------- Topbar Health, Disk & Log Alert Dot ----------
     async function refreshHealthBar() {
       try {
         const h = await api('/health', { skipAuthRedirect: true });
@@ -1629,6 +1933,7 @@
       }
     }
 
+    // ---------- Tab 1: 资讯管理 ----------
     async function loadNews() {
       const q = document.getElementById('news-q').value.trim();
       const status = document.getElementById('news-status').value;
@@ -1699,6 +2004,7 @@
       }
     }
 
+    // ---------- Tab 2: 文章管理 ----------
     async function loadArticles() {
       const data = await api('/api/articles');
       const items = data.items || [];
@@ -1712,6 +2018,7 @@
       tb.innerHTML = items.map(a => {
         const coverCleared = (a.cover_path === '' || a.has_cover === false);
         const canPush = (a.status === 'draft_failed' || a.status === 'ready');
+        const pushBtnLabel = a.status === 'draft_failed' ? '重试推草稿' : '推送草稿';
         const pushBtnTitle = a.status === 'ready' ? '推送文章到公众号草稿箱' : '重新推送失败的文章到公众号草稿箱';
         return `
           <tr>
@@ -1743,7 +2050,7 @@
               <div class="row-actions">
                 <button type="button" class="btn btn-sm" data-date="${esc(a.date)}" onclick="openArticleModal(this.dataset.date)">查看正文</button>
                 ${canPush
-                  ? `<button type="button" class="btn btn-sm btn-primary" data-date="${esc(a.date)}" title="${esc(pushBtnTitle)}" onclick="pushDraftFromArticles(this.dataset.date, this)">重试推草稿</button>`
+                  ? `<button type="button" class="btn btn-sm btn-primary" data-date="${esc(a.date)}" title="${esc(pushBtnTitle)}" onclick="pushDraftFromArticles(this.dataset.date, this)">${pushBtnLabel}</button>`
                   : ''}
               </div>
             </td>
@@ -1774,6 +2081,7 @@
       }
     }
 
+    // Article Preview Modal
     async function openArticleModal(dateStr) {
       try {
         const a = await api(`/api/articles/${encodeURIComponent(dateStr)}`);
@@ -1873,12 +2181,14 @@
       }
     }
 
+    // ---------- Tab 3: 发布记录 (+ 条件显示的待重试/失败队列) ----------
     async function loadPublishTab() {
       const [pubData, draftData] = await Promise.all([
         api('/api/publish-records'),
         api('/api/wechat/drafts')
       ]);
 
+      // Queued / failed retry section (only shown when non-empty)
       const pendingTasks = (draftData.items || []).filter(d => d.status === 'queued' || d.status === 'failed');
       const retryCard = document.getElementById('publish-retry-card');
       const retryBadge = document.getElementById('nav-retry-badge');
@@ -1910,6 +2220,7 @@
         if (retryBadge) retryBadge.classList.add('hidden');
       }
 
+      // Publish records table
       const records = pubData.items || [];
       document.getElementById('publish-count-badge').textContent = `${pubData.count ?? records.length} 条`;
       const tb = document.getElementById('publish-tbody');
@@ -1973,6 +2284,7 @@
       }
     }
 
+    // Mark Manual Published Modal
     function openPublishModal(recordId, title, existingNotes) {
       pendingPublishRecordId = recordId;
       document.getElementById('publish-modal-subtitle').textContent = `确认文章《${title}》已在微信公众号后台人工审核并发布：`;
@@ -2016,6 +2328,7 @@
       }
     });
 
+    // ---------- Tab 4: 系统配置 ----------
     async function loadSettingsAndBackups() {
       const [cfg, bk] = await Promise.all([api('/api/config'), api('/api/backups')]);
 
@@ -2144,6 +2457,7 @@
       }
     }
 
+    // ---------- Slide-over Task Log Drawer ----------
     function openLogsDrawer() {
       document.getElementById('logs-drawer-backdrop').classList.add('open');
       document.getElementById('logs-drawer').classList.add('open');
@@ -2202,6 +2516,7 @@
       }
     }
 
+    // ---------- Global Keyboard Shortcuts ----------
     document.addEventListener('keydown', (e) => {
       if (e.key === 'Escape') {
         closeArticleModal();
@@ -2211,6 +2526,7 @@
       }
     });
 
+    // ---------- Boot ----------
     (async function boot() {
       showBoot();
       try {

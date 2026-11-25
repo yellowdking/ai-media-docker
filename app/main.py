@@ -11,6 +11,7 @@ from __future__ import annotations
 import asyncio
 import base64
 import hashlib
+import hmac
 import json
 import logging
 import os
@@ -19,22 +20,26 @@ import secrets
 import shutil
 import socket
 import struct
+import time
 from contextlib import asynccontextmanager
 from datetime import timedelta
 from pathlib import Path
 from typing import Any
 
 from fastapi import FastAPI, HTTPException, Query, Request
-from fastapi.responses import FileResponse, HTMLResponse, Response
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response
 from pydantic import BaseModel, Field
 
 from .db import (
     add_task_log,
     cleanup_old_data,
+    cleanup_pushed_article_media,
     create_sqlite_backup,
     ensure_data_dirs,
+    format_bytes,
     get_conn,
     get_data_dir,
+    get_data_disk_usage,
     get_db_health,
     get_settings_dict,
     has_scheduled_backup_today,
@@ -106,7 +111,6 @@ def _is_masked_secret(value: str, current_secret: str = "") -> bool:
 
 
 def _get_docker_bridge_gateway() -> str | None:
-    """Detect the container's default Docker bridge gateway from /proc/net/route."""
     global _CACHED_DOCKER_GATEWAY
     if _CACHED_DOCKER_GATEWAY is not None:
         return _CACHED_DOCKER_GATEWAY or None
@@ -143,7 +147,6 @@ def _is_loopback_host_header(host_header: str) -> bool:
 
 
 def _require_localhost(request: Request) -> None:
-    """Allow internal ingest ONLY from container loopback or host loopback (127.0.0.1 / ::1)."""
     if request.headers.get("x-forwarded-for") or request.headers.get("x-real-ip"):
         raise HTTPException(
             status_code=403,
@@ -167,7 +170,6 @@ def _require_localhost(request: Request) -> None:
 
 
 def _compute_next_retry_at(attempts: int) -> str:
-    """Exponential backoff for queued WeChat draft uploads (2m, 4m, 8m, ..., capped at 60m)."""
     delay_seconds = min(3600, 120 * (2 ** max(0, attempts - 1)))
     return (now_shanghai() + timedelta(seconds=delay_seconds)).isoformat(timespec="seconds")
 
@@ -202,7 +204,6 @@ def _parse_manifest_files(manifest: dict[str, Any]) -> dict[str, dict[str, Any]]
 
 
 async def _daily_backup_loop() -> None:
-    """Background loop for daily SQLite backup and >7d disk cleanup (incoming/ + articles/)."""
     await asyncio.sleep(15)
     while True:
         try:
@@ -321,14 +322,120 @@ def _is_localhost_request(request: Request) -> bool:
     return bool(gw_ip and client_ip == gw_ip and _is_loopback_host_header(host_hdr))
 
 
-@app.middleware("http")
-async def admin_basic_auth_middleware(request: Request, call_next):
+SESSION_COOKIE_NAME = "ai_media_session"
+SESSION_TTL_REMEMBER = 7 * 86400
+SESSION_TTL_DEFAULT = 24 * 3600
+AUTH_EXEMPT_PATHS = {
+    "/health",
+    "/",
+    "/api/auth/login",
+    "/api/auth/logout",
+    "/api/auth/me",
+}
+
+
+def _get_admin_credentials() -> tuple[str, str]:
+    admin_user = os.environ.get("ADMIN_USER", "admin").strip() or "admin"
     admin_password = os.environ.get("ADMIN_PASSWORD", "").strip()
+    return admin_user, admin_password
+
+
+def _get_session_signing_key() -> bytes:
+    _, admin_password = _get_admin_credentials()
+    session_secret = os.environ.get("SESSION_SECRET", "").strip()
+    material = f"ai-media-session-v1:{session_secret}:{admin_password}".encode("utf-8")
+    return hashlib.sha256(material).digest()
+
+
+def _create_session_token(username: str, ttl_seconds: int) -> str:
+    payload = {
+        "u": username,
+        "exp": int(time.time()) + max(60, int(ttl_seconds)),
+        "n": secrets.token_hex(8),
+    }
+    payload_bytes = json.dumps(payload, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
+    payload_b64 = base64.urlsafe_b64encode(payload_bytes).decode("ascii").rstrip("=")
+    sig = hmac.new(_get_session_signing_key(), payload_b64.encode("ascii"), hashlib.sha256).hexdigest()
+    return f"{payload_b64}.{sig}"
+
+
+def _verify_session_token(token: str, expected_username: str) -> bool:
+    if not token or "." not in token:
+        return False
+    parts = token.split(".", 1)
+    if len(parts) != 2 or not parts[0] or not parts[1]:
+        return False
+    payload_b64, sig = parts
+    expected_sig = hmac.new(
+        _get_session_signing_key(), payload_b64.encode("ascii"), hashlib.sha256
+    ).hexdigest()
+    if not secrets.compare_digest(sig, expected_sig):
+        return False
+    try:
+        padded = payload_b64 + "=" * (-len(payload_b64) % 4)
+        payload = json.loads(base64.urlsafe_b64decode(padded.encode("ascii")).decode("utf-8"))
+        if not isinstance(payload, dict):
+            return False
+        user = str(payload.get("u") or "")
+        exp = int(payload.get("exp") or 0)
+        if exp <= int(time.time()):
+            return False
+        return secrets.compare_digest(user, expected_username)
+    except Exception:
+        return False
+
+
+def _verify_basic_auth(auth_header: str, admin_user: str, admin_password: str) -> bool:
+    if not auth_header or not auth_header.startswith("Basic "):
+        return False
+    try:
+        decoded = base64.b64decode(auth_header[6:].strip()).decode("utf-8")
+        user, sep, pwd = decoded.partition(":")
+        if not sep:
+            return False
+        user_ok = secrets.compare_digest(user, admin_user)
+        pwd_ok = secrets.compare_digest(pwd, admin_password)
+        return user_ok and pwd_ok
+    except Exception:
+        return False
+
+
+def _is_https_request(request: Request) -> bool:
+    proto = request.headers.get("x-forwarded-proto", "").split(",", 1)[0].strip().lower()
+    return request.url.scheme == "https" or proto == "https"
+
+
+def _is_request_authenticated(request: Request) -> bool:
+    admin_user, admin_password = _get_admin_credentials()
+    if not admin_password:
+        return True
+    cookie_token = request.cookies.get(SESSION_COOKIE_NAME, "")
+    if _verify_session_token(cookie_token, admin_user):
+        return True
+    auth_header = request.headers.get("authorization", "")
+    if _verify_basic_auth(auth_header, admin_user, admin_password):
+        return True
+    return False
+
+
+def _is_wechat_configured_from_cfg(cfg: dict[str, str]) -> bool:
+    return bool(cfg.get("wechat_appid", "").strip() and cfg.get("wechat_appsecret", "").strip())
+
+
+def _is_wechat_configured() -> bool:
+    with get_conn() as conn:
+        cfg = get_settings_dict(conn)
+    return _is_wechat_configured_from_cfg(cfg)
+
+
+@app.middleware("http")
+async def admin_auth_middleware(request: Request, call_next):
+    _, admin_password = _get_admin_credentials()
     if not admin_password:
         return await call_next(request)
 
     path = request.url.path
-    if path == "/health":
+    if path in AUTH_EXEMPT_PATHS:
         return await call_next(request)
     if _is_localhost_request(request) and (
         path.startswith("/api/internal/")
@@ -337,25 +444,22 @@ async def admin_basic_auth_middleware(request: Request, call_next):
     ):
         return await call_next(request)
 
-    admin_user = os.environ.get("ADMIN_USER", "admin").strip() or "admin"
-    auth = request.headers.get("authorization", "")
-    if auth.startswith("Basic "):
-        try:
-            decoded = base64.b64decode(auth[6:].strip()).decode("utf-8")
-            user, _, pwd = decoded.partition(":")
-            if secrets.compare_digest(user, admin_user) and secrets.compare_digest(pwd, admin_password):
-                return await call_next(request)
-        except Exception:
-            pass
+    if _is_request_authenticated(request):
+        return await call_next(request)
 
-    return Response(
-        content="Unauthorized",
+    return JSONResponse(
         status_code=401,
-        headers={"WWW-Authenticate": 'Basic realm="AI Media Admin"'},
+        content={"detail": "未登录或登录已过期"},
     )
 
 
 # ---------------------------- Pydantic Models ----------------------------
+
+
+class LoginRequest(BaseModel):
+    username: str = Field(..., min_length=1, max_length=128)
+    password: str = Field(..., min_length=1, max_length=256)
+    remember: bool = True
 
 
 class NewsUpdate(BaseModel):
@@ -409,9 +513,70 @@ class SettingsUpdate(BaseModel):
     wechat_mock_mode: bool | None = None
     auto_backup_enabled: bool | None = None
     backup_retain_count: int | None = Field(default=None, ge=3, le=365)
+    data_retain_days: int | None = Field(default=None, ge=1, le=365)
     draft_retry_enabled: bool | None = None
     draft_retry_max_attempts: int | None = Field(default=None, ge=1, le=20)
     site_name: str | None = None
+
+
+# ---------------------------- Auth Routes ----------------------------
+
+
+@app.post("/api/auth/login")
+async def auth_login(payload: LoginRequest, request: Request, response: Response) -> dict[str, Any]:
+    admin_user, admin_password = _get_admin_credentials()
+    if not admin_password:
+        return {
+            "ok": True,
+            "username": admin_user,
+            "wechat_configured": _is_wechat_configured(),
+        }
+
+    user_ok = secrets.compare_digest(payload.username.strip(), admin_user)
+    pwd_ok = secrets.compare_digest(payload.password, admin_password)
+    if not (user_ok and pwd_ok):
+        raise HTTPException(status_code=401, detail="用户名或密码错误")
+
+    ttl = SESSION_TTL_REMEMBER if payload.remember else SESSION_TTL_DEFAULT
+    token = _create_session_token(admin_user, ttl)
+    response.set_cookie(
+        key=SESSION_COOKIE_NAME,
+        value=token,
+        max_age=ttl,
+        httponly=True,
+        samesite="lax",
+        secure=_is_https_request(request),
+        path="/",
+    )
+    return {
+        "ok": True,
+        "username": admin_user,
+        "wechat_configured": _is_wechat_configured(),
+    }
+
+
+@app.post("/api/auth/logout")
+async def auth_logout(response: Response) -> dict[str, Any]:
+    response.delete_cookie(
+        key=SESSION_COOKIE_NAME,
+        path="/",
+        httponly=True,
+        samesite="lax",
+    )
+    return {"ok": True}
+
+
+@app.get("/api/auth/me")
+async def auth_me(request: Request) -> dict[str, Any]:
+    admin_user, admin_password = _get_admin_credentials()
+    auth_enabled = bool(admin_password)
+    authenticated = _is_request_authenticated(request)
+    return {
+        "authenticated": authenticated,
+        "auth_enabled": auth_enabled,
+        "username": admin_user if authenticated else "",
+        "wechat_configured": _is_wechat_configured() if authenticated else False,
+    }
 
 
 # ---------------------------- Core & UI Routes ----------------------------
@@ -421,6 +586,7 @@ class SettingsUpdate(BaseModel):
 async def health() -> dict[str, Any]:
     ensure_data_dirs()
     db_info = get_db_health()
+    disk_info = get_data_disk_usage()
     with get_conn() as conn:
         queued_drafts = conn.execute(
             "SELECT COUNT(*) AS c FROM draft_tasks WHERE status = 'queued'"
@@ -434,7 +600,10 @@ async def health() -> dict[str, Any]:
         "status": "ok",
         "service": "ai-media-server",
         "publish_mode": PUBLISH_MODE,
+        "wechat_configured": _is_wechat_configured_from_cfg(cfg),
         "data_dir": str(get_data_dir()),
+        "disk_usage_bytes": disk_info["disk_usage_bytes"],
+        "disk_usage_human": disk_info["disk_usage_human"],
         "sqlite": db_info,
         "queued_drafts": queued_drafts,
         "backups_count": backups_count,
@@ -931,6 +1100,15 @@ async def update_news_status(news_id: str, payload: NewsUpdate) -> dict[str, Any
     return {"ok": True, "item": dict(row)}
 
 
+@app.delete("/api/news/{news_id}")
+async def delete_news_item(news_id: str) -> dict[str, Any]:
+    with get_conn() as conn:
+        cur = conn.execute("DELETE FROM news_items WHERE id = ?", (news_id,))
+        if cur.rowcount == 0:
+            raise HTTPException(status_code=404, detail="资讯不存在")
+    return {"ok": True, "id": news_id}
+
+
 @app.post("/api/news/{news_id}/promote")
 async def promote_news_to_topic(news_id: str) -> dict[str, Any]:
     ts = now_iso()
@@ -1042,7 +1220,7 @@ async def list_articles() -> dict[str, Any]:
             """
             SELECT date, title, subtitle, category, template, author, publish_mode,
                    review_passed, needs_manual_review, status, word_count, sources_count,
-                   ingested_at, updated_at
+                   cover_path, ingested_at, updated_at
             FROM articles
             ORDER BY date DESC
             """
@@ -1050,7 +1228,7 @@ async def list_articles() -> dict[str, Any]:
     items = []
     for r in rows:
         d = dict(r)
-        d["cover_url"] = f"/api/articles/{d['date']}/files/cover.png"
+        d["cover_url"] = f"/api/articles/{d['date']}/files/cover.png" if d.get("cover_path") else ""
         items.append(d)
     return {"items": items, "count": len(items)}
 
@@ -1086,7 +1264,7 @@ async def get_article_detail(date: str) -> dict[str, Any]:
     item["review"] = json.loads(item.pop("review_json") or "{}")
     item["article_html"] = sanitize_wechat_html(raw_html)
     item["article_md"] = md_content
-    item["cover_url"] = f"/api/articles/{date_str}/files/cover.png"
+    item["cover_url"] = f"/api/articles/{date_str}/files/cover.png" if item.get("cover_path") else ""
     item["draft_tasks"] = drafts
     item["metrics"] = metrics
     return item
@@ -1333,6 +1511,26 @@ async def _execute_draft_upload(
 
             task_row = conn.execute("SELECT * FROM draft_tasks WHERE id = ?", (task_id,)).fetchone()
 
+        media_cleanup: dict[str, Any] | None = None
+        if ok and mode == "real":
+            try:
+                media_cleanup = cleanup_pushed_article_media(date_str)
+                freed_kb = round(media_cleanup["freed_bytes"] / 1024, 1)
+                with get_conn() as conn:
+                    add_task_log(
+                        conn,
+                        date_str=date_str,
+                        stage="cleanup",
+                        status="completed",
+                        message=(
+                            f"真实草稿上传成功，已自动清理文章图片与缓存："
+                            f"删除 {media_cleanup['removed_files']} 个文件，释放 {freed_kb} KB"
+                        ),
+                        details=media_cleanup,
+                    )
+            except Exception as exc:
+                logger.warning("Auto-clean pushed media failed for %s: %s", date_str, exc)
+
         return {
             "ok": ok,
             "publish_mode": PUBLISH_MODE,
@@ -1345,6 +1543,7 @@ async def _execute_draft_upload(
                 else f"{err_msg}" + (f"（已排队，下次自动重试: {next_retry_at}）" if next_retry_at else "")
             ),
             "task": dict(task_row) if task_row else None,
+            "media_cleanup": media_cleanup,
         }
 
 
@@ -1529,7 +1728,8 @@ def _build_public_config() -> dict[str, Any]:
     raw_secret = cfg.get("wechat_appsecret", "").strip()
     has_secret = bool(raw_secret)
     masked_secret = _mask_secret(raw_secret)
-    appid = cfg.get("wechat_appid", "")
+    appid = cfg.get("wechat_appid", "").strip()
+    disk_info = get_data_disk_usage()
     return {
         "wechat_appid": appid,
         "app_id": appid,
@@ -1537,6 +1737,7 @@ def _build_public_config() -> dict[str, Any]:
         "has_app_secret": has_secret,
         "wechat_appsecret_masked": masked_secret,
         "app_secret": masked_secret,
+        "wechat_configured": bool(appid and has_secret),
         "wechat_mock_mode": cfg.get("wechat_mock_mode", "true").lower() == "true",
         "wechat_publish_mode": PUBLISH_MODE,
         "auto_backup_enabled": cfg.get("auto_backup_enabled", "true").lower() == "true",
@@ -1548,6 +1749,8 @@ def _build_public_config() -> dict[str, Any]:
         "queued_drafts": queued_drafts,
         "site_name": cfg.get("site_name", "AI Media 自媒体管理后台"),
         "data_dir": str(get_data_dir()),
+        "disk_usage_bytes": disk_info["disk_usage_bytes"],
+        "disk_usage_human": disk_info["disk_usage_human"],
         "sqlite": get_db_health(),
     }
 
@@ -1578,6 +1781,8 @@ def _apply_config_update(payload: SettingsUpdate) -> dict[str, Any]:
             updates["auto_backup_enabled"] = "true" if payload.auto_backup_enabled else "false"
         if payload.backup_retain_count is not None:
             updates["backup_retain_count"] = str(payload.backup_retain_count)
+        if payload.data_retain_days is not None:
+            updates["data_retain_days"] = str(payload.data_retain_days)
         if payload.draft_retry_enabled is not None:
             updates["draft_retry_enabled"] = "true" if payload.draft_retry_enabled else "false"
         if payload.draft_retry_max_attempts is not None:
@@ -1651,3 +1856,48 @@ async def run_backup() -> dict[str, Any]:
 @app.post("/api/cleanup/run")
 async def run_cleanup(retain_days: int | None = Query(default=None, ge=1, le=365)) -> dict[str, Any]:
     return cleanup_old_data(retain_days=retain_days, trigger="manual")
+
+
+@app.post("/api/cleanup/pushed-media")
+async def run_cleanup_pushed_media() -> dict[str, Any]:
+    with get_conn() as conn:
+        rows = conn.execute(
+            "SELECT date FROM articles WHERE status IN ('draft_uploaded', 'published_manual') ORDER BY date DESC"
+        ).fetchall()
+    dates = [r["date"] for r in rows]
+    cleaned_dates: list[str] = []
+    total_removed_files = 0
+    total_freed_bytes = 0
+    for d in dates:
+        res = cleanup_pushed_article_media(d)
+        if res["removed_files"] > 0:
+            cleaned_dates.append(d)
+        total_removed_files += res["removed_files"]
+        total_freed_bytes += res["freed_bytes"]
+
+    freed_kb = round(total_freed_bytes / 1024, 1)
+    with get_conn() as conn:
+        add_task_log(
+            conn,
+            date_str=today_str(),
+            stage="cleanup",
+            status="completed",
+            message=(
+                f"手动清理已推文章图片与缓存：检查 {len(dates)} 篇，"
+                f"删除 {total_removed_files} 个文件，释放 {freed_kb} KB"
+            ),
+            details={
+                "articles_checked": len(dates),
+                "cleaned_dates": cleaned_dates,
+                "removed_files": total_removed_files,
+                "freed_bytes": total_freed_bytes,
+            },
+        )
+    return {
+        "ok": True,
+        "articles_checked": len(dates),
+        "cleaned_dates": cleaned_dates,
+        "removed_files": total_removed_files,
+        "freed_bytes": total_freed_bytes,
+        "freed_human": format_bytes(total_freed_bytes),
+    }

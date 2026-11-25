@@ -21,7 +21,7 @@ try:
     SHANGHAI_TZ = ZoneInfo("Asia/Shanghai")
 except ZoneInfoNotFoundError:
     SHANGHAI_TZ = timezone(timedelta(hours=8))
-DATE_DIR_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+DATE_DIR_RE = re.compile(r"^\d{4}-\d{2}-\d{2}(?:-\d{2})?$")
 IMAGE_EXTS = {".png", ".jpg", ".jpeg", ".webp", ".gif"}
 
 DEFAULT_SETTINGS: dict[str, str] = {
@@ -250,6 +250,7 @@ def init_db() -> None:
     ts = now_iso()
     with get_conn() as conn:
         conn.executescript(SCHEMA_SQL)
+        # Idempotent schema migrations for existing SQLite databases
         _ensure_column(conn, "draft_tasks", "max_attempts", "INTEGER DEFAULT 5")
         _ensure_column(conn, "draft_tasks", "next_retry_at", "TEXT DEFAULT ''")
         _ensure_column(conn, "draft_tasks", "last_error_at", "TEXT DEFAULT ''")
@@ -262,6 +263,7 @@ def init_db() -> None:
                 "INSERT OR IGNORE INTO settings (key, value, updated_at) VALUES (?, ?, ?)",
                 (key, val, ts),
             )
+        # Always enforce draft_only at DB level
         conn.execute(
             "UPDATE settings SET value = 'draft_only', updated_at = ? WHERE key = 'wechat_publish_mode'",
             (ts,),
@@ -322,6 +324,7 @@ def prune_backups(conn: sqlite3.Connection, retain: int) -> int:
     retain = max(3, int(retain))
     removed = 0
 
+    # 1. Prune rows exceeding retain limit
     old_rows = conn.execute(
         "SELECT id, filename FROM backups ORDER BY id DESC LIMIT -1 OFFSET ?",
         (retain,),
@@ -336,6 +339,7 @@ def prune_backups(conn: sqlite3.Connection, retain: int) -> int:
         conn.execute("DELETE FROM backups WHERE id = ?", (row["id"],))
         removed += 1
 
+    # 2. Remove stale DB rows whose backing files disappeared
     kept_rows = conn.execute("SELECT id, filename FROM backups ORDER BY id DESC").fetchall()
     kept_names: set[str] = set()
     for row in kept_rows:
@@ -345,6 +349,7 @@ def prune_backups(conn: sqlite3.Connection, retain: int) -> int:
         else:
             kept_names.add(row["filename"])
 
+    # 3. Clean up any untracked/orphan backup files beyond retain count
     disk_files = sorted(
         (p for p in backup_dir.glob("ai_media_*.db") if p.is_file()),
         key=lambda p: p.stat().st_mtime,
@@ -468,7 +473,7 @@ def cleanup_old_data(retain_days: int | None = None, trigger: str = "scheduled")
         if not bucket_dir.exists():
             continue
         for child in sorted(bucket_dir.iterdir()):
-            if child.is_dir() and DATE_DIR_RE.match(child.name) and child.name < cutoff_date:
+            if child.is_dir() and DATE_DIR_RE.match(child.name) and child.name[:10] < cutoff_date:
                 freed_bytes += _dir_size(child)
                 shutil.rmtree(child, ignore_errors=True)
                 removed_list.append(child.name)
@@ -486,7 +491,7 @@ def cleanup_old_data(retain_days: int | None = None, trigger: str = "scheduled")
             ("articles", "date"),
         )
         for table, col in table_date_cols:
-            cur = conn.execute(f"DELETE FROM {table} WHERE {col} != '' AND {col} < ?", (cutoff_date,))
+            cur = conn.execute(f"DELETE FROM {table} WHERE {col} != '' AND substr({col}, 1, 10) < ?", (cutoff_date,))
             if cur.rowcount:
                 db_deleted[table] = cur.rowcount
 

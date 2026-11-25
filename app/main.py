@@ -35,6 +35,7 @@ from .db import (
     cleanup_old_data,
     cleanup_pushed_article_media,
     create_sqlite_backup,
+    delete_article_and_storage,
     ensure_data_dirs,
     format_bytes,
     get_conn,
@@ -48,6 +49,10 @@ from .db import (
     now_shanghai,
     prune_backups,
     today_str,
+)
+from .translator import (
+    build_translated_article_bundle,
+    generate_cover_png,
 )
 from .wechat import (
     PUBLISH_MODE,
@@ -327,8 +332,8 @@ async def lifespan(_app: FastAPI):
 
 
 app = FastAPI(
-    title="AI Media Debian Backend",
-    version="1.2.4",
+    title="咨询管理后台系统",
+    version="1.2.5",
     lifespan=lifespan,
 )
 
@@ -514,6 +519,16 @@ class PublishRecordUpdate(BaseModel):
     status: str = Field(..., pattern="^(draft_ready|manual_published)$")
     published_url: str = ""
     notes: str = ""
+
+
+class ArticleBatchDeleteRequest(BaseModel):
+    dates: list[str] = Field(default_factory=list)
+    all: bool = False
+
+
+class PublishRecordBatchDeleteRequest(BaseModel):
+    ids: list[int] = Field(default_factory=list)
+    all: bool = False
 
 
 class MetricsCreate(BaseModel):
@@ -731,11 +746,11 @@ async def ingest_article(date: str, request: Request) -> dict[str, Any]:
     except Exception as exc:
         raise HTTPException(status_code=400, detail=f"文章 JSON/Markdown 解析失败: {exc}")
 
-    title = str(metadata.get("title") or f"{date_str} AI 文章").strip()
+    title = str(metadata.get("title") or f"{date_str} 资讯文章").strip()
     subtitle = str(metadata.get("subtitle") or "").strip()
     category = str(metadata.get("category") or "AI新闻").strip()
     template = str(metadata.get("template") or "news").strip()
-    author = str(metadata.get("author") or "AI Media").strip()
+    author = str(metadata.get("author") or "咨询管理后台系统").strip()
     review_passed = 1 if review_data.get("passed") else 0
     needs_manual = 1 if review_data.get("needs_manual_review") else 0
     sources_list = sources_data.get("sources", []) if isinstance(sources_data, dict) else []
@@ -896,7 +911,7 @@ async def ingest_article(date: str, request: Request) -> dict[str, Any]:
             conn.execute(
                 """
                 INSERT INTO topics (date, title, category, source_url, source_name, score, status, notes, created_at, updated_at)
-                VALUES (?, ?, ?, '', 'AI Media 当日成稿', 100.0, 'produced', '已自动生成并入库', ?, ?)
+                VALUES (?, ?, ?, '', '当日自动成稿', 100.0, 'produced', '已自动生成并入库', ?, ?)
                 """,
                 (date_str, title, category, ts, ts),
             )
@@ -1169,6 +1184,191 @@ async def promote_news_to_topic(news_id: str) -> dict[str, Any]:
     return {"ok": True, "topic": dict(topic)}
 
 
+def _allocate_daily_article_slot(base_date: str | None = None) -> str:
+    """Allocate the next unused YYYY-MM-DD-NN slot (01..99) across SQLite articles and /data/articles/."""
+    day = (base_date or today_str())[:10]
+    dirs = ensure_data_dirs()
+    articles_root = dirs["articles"]
+    with get_conn() as conn:
+        rows = conn.execute(
+            "SELECT date FROM articles WHERE date LIKE ?",
+            (f"{day}-%",),
+        ).fetchall()
+    used_slots = {str(r["date"]) for r in rows}
+    if articles_root.exists():
+        for child in articles_root.iterdir():
+            if child.name.startswith(f"{day}-"):
+                used_slots.add(child.name)
+    for idx in range(1, 100):
+        candidate = f"{day}-{idx:02d}"
+        if candidate not in used_slots and not (articles_root / candidate).exists():
+            return candidate
+    raise HTTPException(status_code=409, detail=f"当日文章槽位已满（{day} 最多 99 篇）")
+
+
+@app.post("/api/news/{news_id}/publish")
+async def publish_news_to_draft(news_id: str) -> dict[str, Any]:
+    with get_conn() as conn:
+        news = conn.execute("SELECT * FROM news_items WHERE id = ?", (news_id,)).fetchone()
+        if not news:
+            raise HTTPException(status_code=404, detail="资讯不存在")
+        news_dict = dict(news)
+        cfg = get_settings_dict(conn)
+
+    slot_date = _allocate_daily_article_slot()
+    default_author = (cfg.get("site_name") or "咨询管理后台系统").strip() or "咨询管理后台系统"
+
+    bundle = await build_translated_article_bundle(
+        article_date=slot_date,
+        title=str(news_dict.get("title") or ""),
+        url=str(news_dict.get("url") or ""),
+        source_name=str(news_dict.get("source_name") or ""),
+        category=str(news_dict.get("category") or "AI新闻"),
+        summary=str(news_dict.get("summary") or ""),
+        published_at=str(news_dict.get("published_at") or ""),
+        author=default_author,
+    )
+
+    dirs = ensure_data_dirs()
+    target_dir = dirs["articles"] / slot_date
+    target_dir.mkdir(parents=True, exist_ok=True)
+
+    (target_dir / "article.md").write_text(bundle["article_md"], encoding="utf-8")
+    (target_dir / "article.html").write_text(bundle["article_html"], encoding="utf-8")
+    (target_dir / "sources.json").write_text(
+        json.dumps(bundle["sources"], ensure_ascii=False, indent=2), encoding="utf-8"
+    )
+    (target_dir / "review.json").write_text(
+        json.dumps(bundle["review"], ensure_ascii=False, indent=2), encoding="utf-8"
+    )
+    (target_dir / "metadata.json").write_text(
+        json.dumps(bundle["metadata"], ensure_ascii=False, indent=2), encoding="utf-8"
+    )
+    cover_file = target_dir / "cover.png"
+    generate_cover_png(cover_file, seed_text=f"{slot_date}:{news_id}:{bundle['title']}")
+
+    cover_sha = _sha256_file(cover_file)
+    cover_size = cover_file.stat().st_size
+    zh_title = bundle["title"]
+    orig_title = bundle["original_title"]
+    translation_mode = bundle["translation_mode"]
+    ts = now_iso()
+
+    with get_conn() as conn:
+        conn.execute(
+            """
+            INSERT INTO articles (
+                date, title, subtitle, category, template, author, publish_mode,
+                review_passed, needs_manual_review, status, word_count, sources_count,
+                cover_path, html_path, md_path, metadata_json, sources_json, review_json,
+                ingested_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(date) DO UPDATE SET
+                title=excluded.title,
+                subtitle=excluded.subtitle,
+                category=excluded.category,
+                template=excluded.template,
+                author=excluded.author,
+                publish_mode='draft_only',
+                review_passed=excluded.review_passed,
+                needs_manual_review=excluded.needs_manual_review,
+                status='ready',
+                word_count=excluded.word_count,
+                sources_count=excluded.sources_count,
+                cover_path=excluded.cover_path,
+                html_path=excluded.html_path,
+                md_path=excluded.md_path,
+                metadata_json=excluded.metadata_json,
+                sources_json=excluded.sources_json,
+                review_json=excluded.review_json,
+                updated_at=excluded.updated_at
+            """,
+            (
+                slot_date,
+                zh_title,
+                bundle["subtitle"],
+                bundle["category"],
+                "news_translated",
+                bundle["author"],
+                PUBLISH_MODE,
+                1,
+                0,
+                "ready",
+                bundle["word_count"],
+                bundle["sources_count"],
+                f"articles/{slot_date}/cover.png",
+                f"articles/{slot_date}/article.html",
+                f"articles/{slot_date}/article.md",
+                json.dumps(bundle["metadata"], ensure_ascii=False),
+                json.dumps(bundle["sources"], ensure_ascii=False),
+                json.dumps(bundle["review"], ensure_ascii=False),
+                ts,
+                ts,
+            ),
+        )
+        conn.execute(
+            """
+            INSERT INTO images (date, filename, rel_path, size_bytes, sha256, kind, created_at)
+            VALUES (?, 'cover.png', ?, ?, ?, 'cover', ?)
+            ON CONFLICT(date, filename) DO UPDATE SET
+                size_bytes=excluded.size_bytes,
+                sha256=excluded.sha256,
+                kind=excluded.kind
+            """,
+            (slot_date, f"articles/{slot_date}/cover.png", cover_size, cover_sha, ts),
+        )
+        conn.execute(
+            """
+            INSERT INTO topics (
+                date, title, category, source_url, source_name, score, status, notes, created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, 'produced', '由资讯管理一键翻译并推送草稿', ?, ?)
+            """,
+            (
+                slot_date,
+                zh_title,
+                bundle["category"],
+                str(news_dict.get("url") or ""),
+                str(news_dict.get("source_name") or ""),
+                float(news_dict.get("score") or 0.0),
+                ts,
+                ts,
+            ),
+        )
+        conn.execute("UPDATE news_items SET status = 'selected' WHERE id = ?", (news_id,))
+        add_task_log(
+            conn,
+            date_str=slot_date,
+            stage="news_publish",
+            status="completed",
+            message=f"资讯一键翻译成稿：《{zh_title}》（模式: {translation_mode}，槽位: {slot_date}）",
+            details={
+                "news_id": news_id,
+                "article_date": slot_date,
+                "title": zh_title,
+                "original_title": orig_title,
+                "translation_mode": translation_mode,
+                "publish_mode": PUBLISH_MODE,
+            },
+        )
+
+    draft_res = await _execute_draft_upload(slot_date, trigger="news_publish")
+    task_info = draft_res.get("task") or {}
+    return {
+        "ok": bool(draft_res.get("ok")),
+        "news_id": news_id,
+        "article_date": slot_date,
+        "title": zh_title,
+        "original_title": orig_title,
+        "translation_mode": translation_mode,
+        "publish_mode": PUBLISH_MODE,
+        "mode": draft_res.get("mode", "mock"),
+        "media_id": str(task_info.get("media_id") or ""),
+        "message": draft_res.get("message") or f"已翻译并推送草稿：《{zh_title}》",
+        "draft": draft_res,
+        "media_cleanup": draft_res.get("media_cleanup"),
+    }
+
+
 # ---------------------------- Module 2: Topics ----------------------------
 
 
@@ -1263,6 +1463,82 @@ async def list_articles() -> dict[str, Any]:
         d["cover_url"] = f"/api/articles/{d['date']}/files/cover.png" if d.get("cover_path") else ""
         items.append(d)
     return {"items": items, "count": len(items)}
+
+
+@app.post("/api/articles/batch-delete")
+async def batch_delete_articles(payload: ArticleBatchDeleteRequest) -> dict[str, Any]:
+    target_dates: list[str] = []
+    seen: set[str] = set()
+    if payload.all:
+        with get_conn() as conn:
+            rows = conn.execute("SELECT date FROM articles ORDER BY date DESC").fetchall()
+        for r in rows:
+            d = str(r["date"])
+            if DATE_RE.match(d) and d not in seen:
+                seen.add(d)
+                target_dates.append(d)
+        dirs = ensure_data_dirs()
+        for bucket in (dirs["articles"], dirs["incoming"]):
+            if bucket.exists():
+                for child in sorted(bucket.iterdir(), reverse=True):
+                    if DATE_RE.match(child.name) and child.name not in seen:
+                        seen.add(child.name)
+                        target_dates.append(child.name)
+    else:
+        for raw in payload.dates:
+            d = _validate_date(str(raw).strip())
+            if d not in seen:
+                seen.add(d)
+                target_dates.append(d)
+
+    deleted_dates: list[str] = []
+    total_removed_files = 0
+    total_freed_bytes = 0
+    for d in target_dates:
+        res = delete_article_and_storage(d, reason="article_batch_delete", record_log=False)
+        if res["existed"]:
+            deleted_dates.append(d)
+        total_removed_files += res["removed_files"]
+        total_freed_bytes += res["freed_bytes"]
+
+    freed_human = format_bytes(total_freed_bytes)
+    with get_conn() as conn:
+        add_task_log(
+            conn,
+            date_str=today_str(),
+            stage="cleanup",
+            status="completed",
+            message=(
+                f"批量清理文章与缓存（{'全部清空' if payload.all else '按勾选'}）："
+                f"删除 {len(deleted_dates)} 篇、本地文件 {total_removed_files} 个，释放 {freed_human}"
+            ),
+            details={
+                "all": payload.all,
+                "deleted_count": len(deleted_dates),
+                "deleted_dates": deleted_dates,
+                "removed_files": total_removed_files,
+                "freed_bytes": total_freed_bytes,
+                "freed_human": freed_human,
+            },
+        )
+
+    return {
+        "ok": True,
+        "deleted_count": len(deleted_dates),
+        "deleted_dates": deleted_dates,
+        "removed_files": total_removed_files,
+        "freed_bytes": total_freed_bytes,
+        "freed_human": freed_human,
+    }
+
+
+@app.delete("/api/articles/{date}")
+async def delete_article(date: str) -> dict[str, Any]:
+    date_str = _validate_date(date)
+    res = delete_article_and_storage(date_str, reason="article_delete", record_log=True)
+    if not res["existed"]:
+        raise HTTPException(status_code=404, detail="文章不存在")
+    return res
 
 
 @app.get("/api/articles/{date}")
@@ -1377,7 +1653,7 @@ async def _execute_draft_upload(
         result = await upload_wechat_draft(
             article_date=date_str,
             title=art["title"],
-            author=art["author"] or "AI Media",
+            author=art["author"] or "咨询管理后台系统",
             digest=art["subtitle"] or art["title"],
             html_content=html_content,
             cover_path=cover_path,
@@ -1660,6 +1936,136 @@ async def update_publish_record(record_id: int, payload: PublishRecordUpdate) ->
     return {"ok": True, "item": dict(updated)}
 
 
+@app.post("/api/publish-records/batch-delete")
+async def batch_delete_publish_records(payload: PublishRecordBatchDeleteRequest) -> dict[str, Any]:
+    with get_conn() as conn:
+        if payload.all:
+            rows = conn.execute(
+                "SELECT id, article_date, title FROM publish_records ORDER BY id DESC"
+            ).fetchall()
+        else:
+            clean_ids = sorted({int(i) for i in payload.ids if int(i) > 0})
+            if not clean_ids:
+                rows = []
+            else:
+                placeholders = ",".join("?" for _ in clean_ids)
+                rows = conn.execute(
+                    f"SELECT id, article_date, title FROM publish_records WHERE id IN ({placeholders})",
+                    clean_ids,
+                ).fetchall()
+
+    matched_ids = [int(r["id"]) for r in rows]
+    distinct_dates: list[str] = []
+    seen_dates: set[str] = set()
+    for r in rows:
+        adate = str(r["article_date"] or "").strip()
+        if adate and DATE_RE.match(adate) and adate not in seen_dates:
+            seen_dates.add(adate)
+            distinct_dates.append(adate)
+
+    total_deleted_records = 0
+    total_deleted_articles = 0
+    total_removed_files = 0
+    total_freed_bytes = 0
+
+    for d in distinct_dates:
+        res = delete_article_and_storage(d, reason="publish_record_batch_delete", record_log=False)
+        total_deleted_records += res["deleted_publish_records"]
+        total_deleted_articles += res["deleted_articles"]
+        total_removed_files += res["removed_files"]
+        total_freed_bytes += res["freed_bytes"]
+
+    with get_conn() as conn:
+        if matched_ids:
+            placeholders = ",".join("?" for _ in matched_ids)
+            extra = conn.execute(
+                f"DELETE FROM publish_records WHERE id IN ({placeholders})",
+                matched_ids,
+            ).rowcount or 0
+            total_deleted_records += extra
+
+        freed_human = format_bytes(total_freed_bytes)
+        add_task_log(
+            conn,
+            date_str=today_str(),
+            stage="cleanup",
+            status="completed",
+            message=(
+                f"批量清理发布记录（{'全部清空' if payload.all else '按勾选'}，联动删除文章与缓存）："
+                f"发布记录 {total_deleted_records} 条、文章 {total_deleted_articles} 篇、"
+                f"本地文件 {total_removed_files} 个，释放 {freed_human}"
+            ),
+            details={
+                "all": payload.all,
+                "deleted_records": total_deleted_records,
+                "deleted_articles": total_deleted_articles,
+                "removed_files": total_removed_files,
+                "freed_bytes": total_freed_bytes,
+                "freed_human": freed_human,
+            },
+        )
+
+    return {
+        "ok": True,
+        "deleted_records": total_deleted_records,
+        "deleted_articles": total_deleted_articles,
+        "removed_files": total_removed_files,
+        "freed_bytes": total_freed_bytes,
+        "freed_human": freed_human,
+    }
+
+
+@app.delete("/api/publish-records/{record_id}")
+async def delete_publish_record(record_id: int) -> dict[str, Any]:
+    with get_conn() as conn:
+        row = conn.execute("SELECT * FROM publish_records WHERE id = ?", (record_id,)).fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail="发布记录不存在")
+        article_date = str(row["article_date"] or "").strip()
+        title = str(row["title"] or "")
+
+    deleted_articles = 0
+    deleted_publish_records = 0
+    removed_files = 0
+    freed_bytes = 0
+
+    if article_date and DATE_RE.match(article_date):
+        res = delete_article_and_storage(
+            article_date,
+            reason="publish_record_delete",
+            record_log=True,
+        )
+        deleted_articles += res["deleted_articles"]
+        deleted_publish_records += res["deleted_publish_records"]
+        removed_files += res["removed_files"]
+        freed_bytes += res["freed_bytes"]
+
+    with get_conn() as conn:
+        extra = conn.execute("DELETE FROM publish_records WHERE id = ?", (record_id,)).rowcount or 0
+        deleted_publish_records += extra
+        if extra > 0 and not (article_date and DATE_RE.match(article_date)):
+            add_task_log(
+                conn,
+                date_str=today_str(),
+                stage="cleanup",
+                status="completed",
+                message=f"清理发布记录 #{record_id}（《{title}》）",
+                details={"record_id": record_id, "article_date": article_date, "title": title},
+            )
+
+    return {
+        "ok": True,
+        "id": record_id,
+        "article_date": article_date,
+        "title": title,
+        "deleted_articles": deleted_articles,
+        "deleted_publish_records": deleted_publish_records,
+        "removed_files": removed_files,
+        "freed_bytes": freed_bytes,
+        "freed_human": format_bytes(freed_bytes),
+    }
+
+
 # ---------------------------- Module 8: Operational Metrics ----------------------------
 
 
@@ -1779,7 +2185,7 @@ def _build_public_config() -> dict[str, Any]:
         "draft_retry_enabled": cfg.get("draft_retry_enabled", "true").lower() == "true",
         "draft_retry_max_attempts": int(cfg.get("draft_retry_max_attempts", "5") or "5"),
         "queued_drafts": queued_drafts,
-        "site_name": cfg.get("site_name", "AI Media 自媒体管理后台"),
+        "site_name": cfg.get("site_name", "咨询管理后台系统"),
         "data_dir": str(get_data_dir()),
         "disk_usage_bytes": disk_info["disk_usage_bytes"],
         "disk_usage_human": disk_info["disk_usage_human"],

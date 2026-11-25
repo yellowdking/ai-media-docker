@@ -332,8 +332,8 @@ async def lifespan(_app: FastAPI):
 
 
 app = FastAPI(
-    title="咨询管理后台系统",
-    version="1.2.5",
+    title="资讯后台管理系统",
+    version="1.2.6",
     lifespan=lifespan,
 )
 
@@ -750,7 +750,7 @@ async def ingest_article(date: str, request: Request) -> dict[str, Any]:
     subtitle = str(metadata.get("subtitle") or "").strip()
     category = str(metadata.get("category") or "AI新闻").strip()
     template = str(metadata.get("template") or "news").strip()
-    author = str(metadata.get("author") or "咨询管理后台系统").strip()
+    author = str(metadata.get("author") or "资讯后台管理系统").strip()
     review_passed = 1 if review_data.get("passed") else 0
     needs_manual = 1 if review_data.get("needs_manual_review") else 0
     sources_list = sources_data.get("sources", []) if isinstance(sources_data, dict) else []
@@ -1216,7 +1216,7 @@ async def publish_news_to_draft(news_id: str) -> dict[str, Any]:
         cfg = get_settings_dict(conn)
 
     slot_date = _allocate_daily_article_slot()
-    default_author = (cfg.get("site_name") or "咨询管理后台系统").strip() or "咨询管理后台系统"
+    default_author = (cfg.get("site_name") or "资讯后台管理系统").strip() or "资讯后台管理系统"
 
     bundle = await build_translated_article_bundle(
         article_date=slot_date,
@@ -1653,7 +1653,7 @@ async def _execute_draft_upload(
         result = await upload_wechat_draft(
             article_date=date_str,
             title=art["title"],
-            author=art["author"] or "咨询管理后台系统",
+            author=art["author"] or "资讯后台管理系统",
             digest=art["subtitle"] or art["title"],
             html_content=html_content,
             cover_path=cover_path,
@@ -2185,7 +2185,7 @@ def _build_public_config() -> dict[str, Any]:
         "draft_retry_enabled": cfg.get("draft_retry_enabled", "true").lower() == "true",
         "draft_retry_max_attempts": int(cfg.get("draft_retry_max_attempts", "5") or "5"),
         "queued_drafts": queued_drafts,
-        "site_name": cfg.get("site_name", "咨询管理后台系统"),
+        "site_name": cfg.get("site_name", "资讯后台管理系统"),
         "data_dir": str(get_data_dir()),
         "disk_usage_bytes": disk_info["disk_usage_bytes"],
         "disk_usage_human": disk_info["disk_usage_human"],

@@ -12,13 +12,17 @@ import re
 import shutil
 import sqlite3
 from contextlib import contextmanager
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Iterator
-from zoneinfo import ZoneInfo
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-SHANGHAI_TZ = ZoneInfo("Asia/Shanghai")
+try:
+    SHANGHAI_TZ = ZoneInfo("Asia/Shanghai")
+except ZoneInfoNotFoundError:
+    SHANGHAI_TZ = timezone(timedelta(hours=8))
 DATE_DIR_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+IMAGE_EXTS = {".png", ".jpg", ".jpeg", ".webp", ".gif"}
 
 DEFAULT_SETTINGS: dict[str, str] = {
     "wechat_appid": "",
@@ -525,5 +529,82 @@ def cleanup_old_data(retain_days: int | None = None, trigger: str = "scheduled")
         "removed_articles": removed_articles,
         "db_deleted": db_deleted,
         "pruned_backups": pruned_backups,
+        "freed_bytes": freed_bytes,
+    }
+
+
+def format_bytes(num_bytes: int) -> str:
+    size = float(max(0, int(num_bytes)))
+    for unit in ("B", "KB", "MB", "GB", "TB"):
+        if size < 1024.0 or unit == "TB":
+            if unit == "B":
+                return f"{int(size)} B"
+            return f"{size:.1f} {unit}"
+        size /= 1024.0
+    return "0 B"
+
+
+def get_data_disk_usage() -> dict[str, Any]:
+    """Compute total disk usage (bytes + human string) under DATA_DIR (/data)."""
+    base = get_data_dir()
+    total_bytes = 0
+    if base.exists():
+        for p in base.rglob("*"):
+            if p.is_file():
+                try:
+                    total_bytes += p.stat().st_size
+                except OSError:
+                    pass
+    return {
+        "disk_usage_bytes": total_bytes,
+        "disk_usage_human": format_bytes(total_bytes),
+    }
+
+
+def cleanup_pushed_article_media(date_str: str) -> dict[str, Any]:
+    """Delete article images and incoming cache for a date after successful real WeChat draft upload."""
+    if not DATE_DIR_RE.match(date_str):
+        raise ValueError(f"Invalid date format: {date_str}")
+    dirs = ensure_data_dirs()
+    removed_files = 0
+    freed_bytes = 0
+
+    art_dir = dirs["articles"] / date_str
+    if art_dir.exists() and art_dir.is_dir():
+        for fpath in sorted(art_dir.iterdir()):
+            if fpath.is_file() and fpath.suffix.lower() in IMAGE_EXTS:
+                try:
+                    size = fpath.stat().st_size
+                except OSError:
+                    size = 0
+                try:
+                    fpath.unlink()
+                    removed_files += 1
+                    freed_bytes += size
+                except OSError:
+                    pass
+
+    inc_dir = dirs["incoming"] / date_str
+    if inc_dir.exists() and inc_dir.is_dir():
+        for p in inc_dir.rglob("*"):
+            if p.is_file():
+                removed_files += 1
+                try:
+                    freed_bytes += p.stat().st_size
+                except OSError:
+                    pass
+        shutil.rmtree(inc_dir, ignore_errors=True)
+
+    with get_conn() as conn:
+        conn.execute("DELETE FROM images WHERE date = ?", (date_str,))
+        conn.execute(
+            "UPDATE articles SET cover_path = '', updated_at = ? WHERE date = ?",
+            (now_iso(), date_str),
+        )
+
+    return {
+        "ok": True,
+        "date": date_str,
+        "removed_files": removed_files,
         "freed_bytes": freed_bytes,
     }

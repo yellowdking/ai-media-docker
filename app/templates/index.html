@@ -3,34 +3,310 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>AI Media 自媒体管理后台</title>
+  <title>AI Media · 公众号草稿中心</title>
   <style>
     :root {
-      --bg: #f4f6fb;
+      --bg: #f8fafc;
+      --bg-subtle: #f1f5f9;
       --card: #ffffff;
       --sidebar: #0f172a;
-      --sidebar-hover: #1e293b;
+      --sidebar-hover: rgba(255, 255, 255, 0.08);
+      --sidebar-active: #2563eb;
       --primary: #2563eb;
       --primary-hover: #1d4ed8;
+      --primary-soft: #eff6ff;
       --success: #16a34a;
+      --success-soft: #dcfce7;
       --warning: #d97706;
+      --warning-soft: #fef3c7;
       --danger: #dc2626;
+      --danger-soft: #fee2e2;
       --text: #0f172a;
+      --text-secondary: #334155;
       --muted: #64748b;
       --border: #e2e8f0;
-      --radius: 10px;
+      --border-strong: #cbd5e1;
+      --radius: 12px;
+      --radius-sm: 8px;
+      --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.05);
+      --shadow-md: 0 10px 30px rgba(15, 23, 42, 0.08);
+      --shadow-lg: 0 24px 60px rgba(15, 23, 42, 0.22);
     }
+
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", "Segoe UI", sans-serif;
+
+    html, body {
+      min-height: 100%;
+      font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Segoe UI", sans-serif;
       background: var(--bg);
       color: var(--text);
-      display: flex;
-      min-height: 100vh;
       font-size: 14px;
+      line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
     }
+
+    a { color: var(--primary); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+
+    .hidden { display: none !important; }
+    .mono {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 12px;
+    }
+    .num { font-variant-numeric: tabular-nums; }
+    .muted { color: var(--muted); }
+    .nowrap { white-space: nowrap; }
+
+    .boot-screen {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 14px;
+      background: linear-gradient(135deg, #f8fafc 0%, #eff6ff 100%);
+      color: var(--muted);
+    }
+    .spinner {
+      width: 28px;
+      height: 28px;
+      border: 3px solid #dbeafe;
+      border-top-color: var(--primary);
+      border-radius: 50%;
+      animation: spin 0.75s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .login-screen {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      background:
+        radial-gradient(circle at 18% 18%, rgba(37, 99, 235, 0.12), transparent 42%),
+        radial-gradient(circle at 82% 80%, rgba(14, 165, 233, 0.12), transparent 44%),
+        linear-gradient(145deg, #f1f5f9 0%, #e2e8f0 48%, #eff6ff 100%);
+    }
+    .login-card {
+      width: 100%;
+      max-width: 408px;
+      background: rgba(255, 255, 255, 0.96);
+      border: 1px solid rgba(226, 232, 240, 0.9);
+      border-radius: 18px;
+      padding: 34px 32px 30px;
+      box-shadow: 0 20px 50px rgba(15, 23, 42, 0.1);
+    }
+    .login-brand {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+      margin-bottom: 26px;
+    }
+    .brand-mark {
+      width: 48px;
+      height: 48px;
+      border-radius: 14px;
+      background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+      color: #fff;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 10px 20px rgba(37, 99, 235, 0.28);
+      margin-bottom: 14px;
+    }
+    .login-brand h1 { font-size: 20px; font-weight: 700; letter-spacing: -0.01em; color: var(--text); }
+    .login-brand p { font-size: 13px; color: var(--muted); margin-top: 5px; }
+    .login-foot {
+      margin-top: 20px;
+      padding-top: 14px;
+      border-top: 1px solid var(--border);
+      text-align: center;
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .field { margin-bottom: 15px; }
+    .field:last-child { margin-bottom: 0; }
+    .field label {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-secondary);
+      margin-bottom: 6px;
+    }
+    .field-hint { font-size: 12px; color: var(--muted); margin-top: 5px; }
+    input[type="text"],
+    input[type="password"],
+    input[type="number"],
+    input[type="url"],
+    select,
+    textarea {
+      width: 100%;
+      border: 1px solid var(--border-strong);
+      border-radius: var(--radius-sm);
+      padding: 9px 12px;
+      font-size: 14px;
+      font-family: inherit;
+      background: #fff;
+      color: var(--text);
+      transition: border-color 0.15s, box-shadow 0.15s;
+      outline: none;
+    }
+    input:focus, select:focus, textarea:focus {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.14);
+    }
+    textarea { min-height: 76px; resize: vertical; }
+
+    .pwd-wrap { position: relative; display: flex; align-items: center; }
+    .pwd-wrap input { padding-right: 40px; }
+    .pwd-toggle {
+      position: absolute;
+      right: 6px;
+      width: 30px;
+      height: 30px;
+      border: none;
+      background: transparent;
+      color: var(--muted);
+      border-radius: 6px;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.15s, color 0.15s;
+    }
+    .pwd-toggle:hover { background: var(--bg-subtle); color: var(--text); }
+
+    .checkbox-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+      color: var(--text-secondary);
+      cursor: pointer;
+      user-select: none;
+      margin: 14px 0 18px;
+    }
+    .checkbox-row input[type="checkbox"] {
+      width: 16px;
+      height: 16px;
+      accent-color: var(--primary);
+      cursor: pointer;
+    }
+
+    .switch-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 14px;
+      padding: 12px 14px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      background: var(--bg);
+    }
+    .switch-meta strong { display: block; font-size: 13px; color: var(--text); }
+    .switch-meta span { display: block; font-size: 12px; color: var(--muted); margin-top: 2px; }
+    .switch { position: relative; display: inline-block; width: 44px; height: 24px; flex-shrink: 0; }
+    .switch input { opacity: 0; width: 0; height: 0; }
+    .switch-slider {
+      position: absolute;
+      inset: 0;
+      cursor: pointer;
+      background: #cbd5e1;
+      border-radius: 999px;
+      transition: background 0.18s;
+    }
+    .switch-slider::before {
+      content: "";
+      position: absolute;
+      height: 18px;
+      width: 18px;
+      left: 3px;
+      top: 3px;
+      background: #fff;
+      border-radius: 50%;
+      box-shadow: 0 1px 3px rgba(15, 23, 42, 0.25);
+      transition: transform 0.18s;
+    }
+    .switch input:checked + .switch-slider { background: var(--primary); }
+    .switch input:checked + .switch-slider::before { transform: translateX(20px); }
+
+    .alert { padding: 10px 12px; border-radius: var(--radius-sm); font-size: 13px; line-height: 1.55; margin-bottom: 14px; }
+    .alert-error { background: #fef2f2; border: 1px solid #fecaca; color: #b91c1c; }
+    .alert-info { background: #eff6ff; border: 1px solid #bfdbfe; color: #1e40af; }
+    .alert-warn { background: #fffbeb; border: 1px solid #fde68a; color: #92400e; }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      border: 1px solid var(--border-strong);
+      background: #fff;
+      color: var(--text);
+      padding: 8px 14px;
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 500;
+      font-family: inherit;
+      white-space: nowrap;
+      transition: background 0.15s, border-color 0.15s, color 0.15s, opacity 0.15s;
+    }
+    .btn:hover:not(:disabled) { background: var(--bg); border-color: #94a3b8; }
+    .btn:disabled { opacity: 0.58; cursor: not-allowed; }
+    .btn-block { width: 100%; padding: 10px 16px; font-size: 14px; font-weight: 600; }
+    .btn-primary { background: var(--primary); color: #fff; border-color: var(--primary); }
+    .btn-primary:hover:not(:disabled) { background: var(--primary-hover); border-color: var(--primary-hover); }
+    .btn-success { background: var(--success); color: #fff; border-color: var(--success); }
+    .btn-success:hover:not(:disabled) { background: #15803d; border-color: #15803d; }
+    .btn-danger-ghost { color: var(--danger); border-color: #fecaca; background: #fff; }
+    .btn-danger-ghost:hover:not(:disabled) { background: #fef2f2; border-color: #fca5a5; }
+    .btn-ghost { border-color: transparent; background: transparent; color: var(--text-secondary); }
+    .btn-ghost:hover:not(:disabled) { background: var(--bg-subtle); color: var(--text); }
+    .btn-sm { padding: 5px 10px; font-size: 12px; border-radius: 6px; }
+    .btn-link {
+      border: none;
+      background: transparent;
+      color: var(--muted);
+      font-size: 13px;
+      cursor: pointer;
+      padding: 6px 8px;
+      font-family: inherit;
+    }
+    .btn-link:hover { color: var(--text); text-decoration: underline; }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 2px 9px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 600;
+      white-space: nowrap;
+      line-height: 1.5;
+    }
+    .badge-blue { background: #dbeafe; color: #1d4ed8; }
+    .badge-green { background: #dcfce7; color: #15803d; }
+    .badge-yellow { background: #fef3c7; color: #b45309; }
+    .badge-red { background: #fee2e2; color: #b91c1c; }
+    .badge-alert { background: #dc2626; color: #fff; box-shadow: 0 1px 2px rgba(220, 38, 38, 0.25); }
+    .badge-gray { background: #f1f5f9; color: #475569; }
+    .badge-outline { background: #f8fafc; color: #64748b; border: 1px solid #cbd5e1; font-weight: 500; }
+    .dot { width: 7px; height: 7px; border-radius: 50%; display: inline-block; flex-shrink: 0; }
+    .dot-green { background: #16a34a; }
+    .dot-red { background: #dc2626; }
+    .dot-yellow { background: #d97706; }
+
+    .app-shell { display: flex; min-height: 100vh; }
     .sidebar {
-      width: 228px;
+      width: 232px;
       background: var(--sidebar);
       color: #e2e8f0;
       display: flex;
@@ -39,93 +315,135 @@
       position: sticky;
       top: 0;
       height: 100vh;
+      z-index: 40;
+      transition: transform 0.22s ease;
     }
-    .brand {
-      padding: 20px 18px 16px;
-      border-bottom: 1px solid rgba(255,255,255,0.08);
+    .sidebar-backdrop { display: none; position: fixed; inset: 0; background: rgba(15, 23, 42, 0.5); z-index: 35; }
+    .sidebar-brand {
+      padding: 20px 18px 18px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      display: flex;
+      align-items: center;
+      gap: 11px;
     }
-    .brand h1 { font-size: 17px; font-weight: 700; color: #fff; letter-spacing: 0.3px; }
-    .brand p { font-size: 12px; color: #94a3b8; margin-top: 4px; }
-    .nav { flex: 1; padding: 10px 8px; overflow-y: auto; }
+    .sidebar-logo {
+      width: 34px;
+      height: 34px;
+      border-radius: 9px;
+      background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
+      color: #fff;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+    .sidebar-brand h1 { font-size: 15px; font-weight: 700; color: #fff; line-height: 1.25; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .sidebar-brand p { font-size: 11px; color: #94a3b8; margin-top: 2px; }
+    .nav { flex: 1; padding: 14px 10px; display: flex; flex-direction: column; gap: 4px; }
     .nav-btn {
       width: 100%;
-      text-align: left;
       background: transparent;
       border: none;
       color: #cbd5e1;
-      padding: 10px 14px;
-      border-radius: 8px;
+      padding: 10px 12px;
+      border-radius: 9px;
       cursor: pointer;
       display: flex;
       align-items: center;
       justify-content: space-between;
-      gap: 8px;
+      gap: 10px;
       font-size: 14px;
-      margin-bottom: 4px;
+      font-family: inherit;
+      font-weight: 500;
       transition: background 0.15s, color 0.15s;
     }
+    .nav-btn-left { display: inline-flex; align-items: center; gap: 10px; }
     .nav-btn:hover { background: var(--sidebar-hover); color: #fff; }
-    .nav-btn.active { background: var(--primary); color: #fff; font-weight: 600; }
+    .nav-btn.active { background: var(--sidebar-active); color: #fff; font-weight: 600; }
     .sidebar-foot {
-      padding: 12px 16px;
-      border-top: 1px solid rgba(255,255,255,0.08);
+      padding: 14px 16px;
+      border-top: 1px solid rgba(255, 255, 255, 0.08);
       font-size: 12px;
       color: #94a3b8;
-      line-height: 1.6;
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
     }
+    .sidebar-foot strong { color: #e2e8f0; font-weight: 600; }
+
     .main { flex: 1; display: flex; flex-direction: column; min-width: 0; }
     .topbar {
-      background: var(--card);
+      background: rgba(255, 255, 255, 0.94);
+      backdrop-filter: blur(8px);
       border-bottom: 1px solid var(--border);
-      padding: 14px 24px;
+      padding: 10px 22px;
+      min-height: 58px;
       display: flex;
       align-items: center;
       justify-content: space-between;
       gap: 12px;
       position: sticky;
       top: 0;
-      z-index: 10;
+      z-index: 20;
       flex-wrap: wrap;
     }
-    .topbar-left { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-    .topbar h2 { font-size: 18px; font-weight: 700; }
-    .badge {
+    .topbar-left { display: flex; align-items: center; gap: 10px; min-width: 0; }
+    .topbar-left h2 { font-size: 17px; font-weight: 700; color: var(--text); white-space: nowrap; }
+    .mobile-menu-btn {
+      display: none;
+      width: 34px;
+      height: 34px;
+      border: 1px solid var(--border);
+      background: #fff;
+      border-radius: 8px;
+      color: var(--text);
+      cursor: pointer;
+      align-items: center;
+      justify-content: center;
+    }
+    .topbar-right { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .pill {
       display: inline-flex;
       align-items: center;
-      padding: 3px 9px;
+      gap: 6px;
+      padding: 4px 10px;
       border-radius: 999px;
       font-size: 12px;
       font-weight: 600;
+      border: 1px solid var(--border);
+      background: var(--bg);
+      color: var(--text-secondary);
       white-space: nowrap;
     }
-    .badge-blue { background: #dbeafe; color: #1d4ed8; }
-    .badge-green { background: #dcfce7; color: #15803d; }
-    .badge-yellow { background: #fef3c7; color: #b45309; }
-    .badge-red { background: #fee2e2; color: #b91c1c; }
-    .badge-gray { background: #f1f5f9; color: #475569; }
-    .content { padding: 20px 24px 40px; max-width: 1440px; width: 100%; }
+    .pill-blue { background: #eff6ff; border-color: #bfdbfe; color: #1d4ed8; }
+    .pill-green { background: #f0fdf4; border-color: #bbf7d0; color: #15803d; }
+    .pill-red { background: #fef2f2; border-color: #fecaca; color: #b91c1c; }
+
+    .logs-btn { position: relative; }
+    .alert-dot {
+      position: absolute;
+      top: -3px;
+      right: -3px;
+      width: 9px;
+      height: 9px;
+      border-radius: 50%;
+      border: 2px solid #fff;
+      display: none;
+    }
+    .alert-dot.error { display: block; background: var(--danger); }
+    .alert-dot.warn { display: block; background: var(--warning); }
+
+    .content { padding: 20px 24px 40px; max-width: 1360px; width: 100%; }
     .tab-panel { display: none; }
     .tab-panel.active { display: block; }
-    .stats-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(165px, 1fr));
-      gap: 14px;
-      margin-bottom: 18px;
-    }
-    .stat-card {
-      background: var(--card);
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      padding: 16px;
-    }
-    .stat-card .label { font-size: 12px; color: var(--muted); }
-    .stat-card .val { font-size: 24px; font-weight: 800; margin-top: 6px; color: var(--text); }
+
     .card {
       background: var(--card);
       border: 1px solid var(--border);
       border-radius: var(--radius);
-      padding: 18px;
+      padding: 18px 20px;
       margin-bottom: 18px;
+      box-shadow: var(--shadow-sm);
     }
     .card-header {
       display: flex;
@@ -135,64 +453,129 @@
       margin-bottom: 14px;
       flex-wrap: wrap;
     }
-    .card-header h3 { font-size: 16px; font-weight: 700; display: flex; align-items: center; gap: 8px; }
-    .toolbar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
-    input, select, textarea {
-      border: 1px solid var(--border);
-      border-radius: 7px;
-      padding: 7px 10px;
-      font-size: 13px;
-      font-family: inherit;
-      background: #fff;
-      color: var(--text);
-    }
-    textarea { width: 100%; min-height: 70px; resize: vertical; }
-    .btn {
-      border: 1px solid var(--border);
-      background: #fff;
-      color: var(--text);
-      padding: 7px 13px;
-      border-radius: 7px;
-      cursor: pointer;
-      font-size: 13px;
-      font-weight: 500;
-      transition: all 0.15s;
-    }
-    .btn:hover { background: #f8fafc; }
-    .btn-primary { background: var(--primary); color: #fff; border-color: var(--primary); }
-    .btn-primary:hover { background: var(--primary-hover); }
-    .btn-success { background: var(--success); color: #fff; border-color: var(--success); }
-    .btn-danger { background: var(--danger); color: #fff; border-color: var(--danger); }
-    .btn-sm { padding: 4px 9px; font-size: 12px; }
-    table { width: 100%; border-collapse: collapse; font-size: 13px; }
-    th, td { text-align: left; padding: 10px 10px; border-bottom: 1px solid var(--border); vertical-align: top; }
-    th { background: #f8fafc; color: #475569; font-weight: 600; white-space: nowrap; }
-    tr:hover td { background: #fafcff; }
+    .card-title { display: flex; align-items: center; gap: 8px; font-size: 15px; font-weight: 700; color: var(--text); }
+    .toolbar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .toolbar input[type="text"], .toolbar select { width: auto; padding: 7px 10px; font-size: 13px; }
+    .toolbar input[type="text"] { min-width: 210px; }
+
     .table-wrap { overflow-x: auto; }
-    .preview-layout { display: grid; grid-template-columns: 2fr 1fr; gap: 18px; }
-    @media (max-width: 980px) { .preview-layout { grid-template-columns: 1fr; } }
-    .article-frame {
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      padding: 16px;
-      background: #fff;
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th, td { text-align: left; padding: 11px 10px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+    th { background: #f8fafc; color: var(--muted); font-weight: 600; font-size: 12px; white-space: nowrap; }
+    tbody tr:last-child td { border-bottom: none; }
+    tbody tr:hover td { background: #f8fafc; }
+    .row-actions { display: inline-flex; align-items: center; gap: 6px; flex-wrap: nowrap; }
+    .title-cell strong { display: block; color: var(--text); font-weight: 600; line-height: 1.45; }
+    .title-cell .sub {
+      color: var(--muted);
+      font-size: 12px;
+      margin-top: 3px;
+      line-height: 1.45;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
     }
-    .preview-iframe {
+    .status-stack { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; }
+    .empty { text-align: center; padding: 40px 16px; color: var(--muted); font-size: 13px; }
+
+    .form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px 18px; margin-bottom: 16px; }
+    .runtime-strip { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px; margin-bottom: 16px; }
+    .runtime-item { background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 10px 12px; }
+    .runtime-item .k { font-size: 11px; color: var(--muted); }
+    .runtime-item .v { font-size: 14px; font-weight: 700; color: var(--text); margin-top: 3px; }
+
+    .modal-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(15, 23, 42, 0.52);
+      backdrop-filter: blur(2px);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 900;
+      padding: 18px;
+    }
+    .modal-backdrop.open { display: flex; }
+    .modal-box {
+      background: #fff;
+      border-radius: 14px;
+      width: min(880px, 96vw);
+      max-height: 90vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      box-shadow: var(--shadow-lg);
+      border: 1px solid rgba(226, 232, 240, 0.9);
+    }
+    .modal-box.modal-sm { width: min(490px, 96vw); }
+    .modal-head {
+      padding: 15px 20px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+    .modal-head h3 { font-size: 16px; font-weight: 700; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .modal-body { padding: 18px 20px; overflow-y: auto; flex: 1; }
+    .modal-foot {
+      padding: 13px 20px;
+      border-top: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 10px;
+      background: #f8fafc;
+    }
+
+    .onboarding-screen {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      background:
+        radial-gradient(circle at 20% 20%, rgba(37, 99, 235, 0.1), transparent 45%),
+        linear-gradient(145deg, #f8fafc 0%, #eff6ff 100%);
+    }
+    .onboarding-card {
       width: 100%;
-      height: 72vh;
-      border: 1px solid var(--border);
-      border-radius: 8px;
+      max-width: 520px;
       background: #fff;
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 28px 30px;
+      box-shadow: var(--shadow-md);
     }
+    .onboarding-head { margin-bottom: 20px; }
+    .onboarding-head h2 { font-size: 20px; font-weight: 700; margin-top: 8px; }
+    .onboarding-head p { font-size: 13px; color: var(--muted); margin-top: 4px; }
+    .onboarding-actions { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 20px; flex-wrap: wrap; }
+
+    .preview-meta {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 14px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid var(--border);
+      font-size: 12px;
+      color: var(--muted);
+    }
+    .sub-tabs { display: flex; gap: 6px; margin-bottom: 12px; flex-wrap: wrap; }
+    .sub-tab.active { background: var(--primary); color: #fff; border-color: var(--primary); }
+    .preview-iframe { width: 100%; height: 58vh; border: 1px solid var(--border); border-radius: var(--radius-sm); background: #fff; }
     .md-source {
       width: 100%;
-      height: 72vh;
+      height: 58vh;
       overflow: auto;
       background: #0f172a;
       color: #e2e8f0;
       padding: 16px;
-      border-radius: 8px;
-      font-family: Consolas, Monaco, monospace;
+      border-radius: var(--radius-sm);
+      font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
       font-size: 12px;
       line-height: 1.65;
       white-space: pre-wrap;
@@ -200,35 +583,68 @@
     }
     .cover-preview {
       width: 100%;
-      max-height: 320px;
+      max-height: 220px;
       object-fit: cover;
-      border-radius: 8px;
+      border-radius: var(--radius-sm);
       border: 1px solid var(--border);
-      margin-bottom: 14px;
+      margin-bottom: 12px;
       display: block;
     }
-    .gallery-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-      gap: 16px;
+    .meta-panel { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px; }
+    .meta-box { border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 14px; background: #f8fafc; font-size: 13px; }
+    .meta-box h4 { font-size: 13px; font-weight: 700; margin-bottom: 8px; }
+
+    .drawer-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(15, 23, 42, 0.42);
+      z-index: 950;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.2s ease;
     }
-    .img-card {
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      overflow: hidden;
+    .drawer-backdrop.open { opacity: 1; pointer-events: auto; }
+    .drawer {
+      position: fixed;
+      top: 0;
+      right: 0;
+      bottom: 0;
+      width: min(620px, 95vw);
       background: #fff;
+      z-index: 960;
+      display: flex;
+      flex-direction: column;
+      box-shadow: -12px 0 40px rgba(15, 23, 42, 0.18);
+      transform: translateX(100%);
+      transition: transform 0.24s cubic-bezier(0.22, 1, 0.36, 1);
     }
-    .img-card img { width: 100%; height: 150px; object-fit: cover; display: block; background: #0f172a; }
-    .img-card .meta { padding: 12px; font-size: 12px; color: var(--muted); }
-    .img-card .meta strong { color: var(--text); font-size: 13px; display: block; margin-bottom: 4px; }
-    .form-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
-      gap: 12px;
-      margin-bottom: 12px;
+    .drawer.open { transform: translateX(0); }
+    .drawer-head {
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
     }
-    .field label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 5px; font-weight: 600; }
-    .field input, .field select { width: 100%; }
+    .drawer-filters {
+      padding: 12px 20px;
+      border-bottom: 1px solid var(--border);
+      background: #f8fafc;
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+    .drawer-filters select { width: auto; padding: 6px 10px; font-size: 13px; }
+    .drawer-body { flex: 1; overflow-y: auto; padding: 14px 20px 24px; }
+    .log-item { border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 10px 12px; margin-bottom: 9px; background: #fff; }
+    .log-item.log-error { border-left: 3px solid var(--danger); background: #fffbfb; }
+    .log-item.log-warn { border-left: 3px solid var(--warning); background: #fffdf7; }
+    .log-item-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; margin-bottom: 5px; }
+    .log-item-meta { display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+    .log-item-msg { font-size: 13px; color: var(--text-secondary); word-break: break-word; line-height: 1.55; }
+
     .toast {
       position: fixed;
       right: 22px;
@@ -236,465 +652,629 @@
       background: #0f172a;
       color: #fff;
       padding: 11px 16px;
-      border-radius: 8px;
+      border-radius: 10px;
       font-size: 13px;
-      box-shadow: 0 8px 24px rgba(15,23,42,0.22);
+      box-shadow: 0 12px 28px rgba(15, 23, 42, 0.25);
       display: none;
       z-index: 1200;
-      max-width: 460px;
+      max-width: 440px;
       border-left: 4px solid var(--primary);
     }
-    .toast.toast-success { border-left-color: var(--success); }
+    .toast.toast-success { border-left-color: #22c55e; }
     .toast.toast-error { background: #7f1d1d; border-left-color: #fca5a5; }
-    .empty { text-align: center; padding: 36px 16px; color: var(--muted); }
-    .mono { font-family: Consolas, Monaco, monospace; font-size: 12px; }
-    .notice {
-      background: #eff6ff;
-      border: 1px solid #bfdbfe;
-      color: #1e40af;
-      padding: 10px 14px;
-      border-radius: 8px;
-      margin-bottom: 14px;
-      font-size: 13px;
-      line-height: 1.6;
+
+    @media (max-width: 860px) {
+      .mobile-menu-btn { display: inline-flex; }
+      .sidebar { position: fixed; left: 0; top: 0; bottom: 0; transform: translateX(-100%); }
+      .sidebar.mobile-open { transform: translateX(0); }
+      .sidebar-backdrop.open { display: block; }
+      .topbar { padding: 10px 14px; }
+      .content { padding: 14px 14px 32px; }
+      .card { padding: 14px; }
+      .form-grid { grid-template-columns: 1fr; }
+      .toolbar input[type="text"] { min-width: 150px; flex: 1; }
+      .hide-mobile { display: none; }
     }
-    .notice-green {
-      background: #f0fdf4;
-      border: 1px solid #bbf7d0;
-      color: #166534;
-    }
-    .modal-backdrop {
-      position: fixed;
-      inset: 0;
-      background: rgba(15, 23, 42, 0.55);
-      display: none;
-      align-items: center;
-      justify-content: center;
-      z-index: 1000;
-      padding: 20px;
-    }
-    .modal-backdrop.open { display: flex; }
-    .modal-box {
-      background: #fff;
-      border-radius: 12px;
-      width: min(920px, 95vw);
-      max-height: 90vh;
-      display: flex;
-      flex-direction: column;
-      overflow: hidden;
-      box-shadow: 0 20px 50px rgba(15, 23, 42, 0.32);
-    }
-    .modal-head {
-      padding: 14px 18px;
-      border-bottom: 1px solid var(--border);
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 10px;
-    }
-    .modal-body { padding: 16px; overflow-y: auto; flex: 1; }
-    .sub-tabs { display: flex; gap: 6px; margin-bottom: 12px; }
-    .sub-tab.active { background: var(--primary); color: #fff; border-color: var(--primary); }
-    a { color: var(--primary); text-decoration: none; }
-    a:hover { text-decoration: underline; }
   </style>
 </head>
 <body>
-  <aside class="sidebar">
-    <div class="brand">
-      <h1 id="site-title">AI Media 管理后台</h1>
-      <p>Debian 存储与草稿发布中心</p>
+  <div id="boot-screen" class="boot-screen">
+    <div class="spinner" aria-hidden="true"></div>
+    <span>正在检查登录状态...</span>
+  </div>
+
+  <section id="login-screen" class="login-screen hidden" aria-label="管理员登录">
+    <div class="login-card">
+      <div class="login-brand">
+        <div class="brand-mark" aria-hidden="true">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 20h9"></path>
+            <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"></path>
+          </svg>
+        </div>
+        <h1>AI Media · 公众号草稿中心</h1>
+        <p>严格仅草稿箱模式 (draft_only) · 管理后台</p>
+      </div>
+
+      <div id="login-error" class="alert alert-error hidden" role="alert"></div>
+
+      <form id="login-form" autocomplete="on">
+        <div class="field">
+          <label for="login-username">用户名</label>
+          <input type="text" id="login-username" name="username" value="admin" autocomplete="username" required />
+        </div>
+        <div class="field">
+          <label for="login-password">密码</label>
+          <div class="pwd-wrap">
+            <input type="password" id="login-password" name="password" placeholder="请输入管理密码" autocomplete="current-password" required />
+            <button type="button" class="pwd-toggle" id="login-pwd-toggle" aria-label="显示或隐藏密码" title="显示/隐藏密码">
+              <svg id="login-eye-open" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                <circle cx="12" cy="12" r="3"></circle>
+              </svg>
+              <svg id="login-eye-closed" class="hidden" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"></path>
+                <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"></path>
+                <line x1="1" y1="1" x2="23" y2="23"></line>
+              </svg>
+            </button>
+          </div>
+        </div>
+
+        <label class="checkbox-row">
+          <input type="checkbox" id="login-remember" checked />
+          <span>记住登录 7 天</span>
+        </label>
+
+        <button type="submit" id="login-submit" class="btn btn-primary btn-block">登录后台</button>
+      </form>
+
+      <div class="login-foot">仅同步至微信公众号草稿箱，绝不自动群发</div>
     </div>
-    <nav class="nav">
-      <button class="nav-btn active" data-tab="news"><span>1. 资讯管理</span></button>
-      <button class="nav-btn" data-tab="topics"><span>2. 选题管理</span></button>
-      <button class="nav-btn" data-tab="articles"><span>3. 文章管理</span></button>
-      <button class="nav-btn" data-tab="preview"><span>4. 文章预览</span></button>
-      <button class="nav-btn" data-tab="images"><span>5. 图片管理</span></button>
-      <button class="nav-btn" data-tab="drafts"><span>6. 草稿上传</span><span class="badge badge-yellow" id="nav-queued-badge" style="display:none;">0</span></button>
-      <button class="nav-btn" data-tab="publish"><span>7. 发布记录</span></button>
-      <button class="nav-btn" data-tab="metrics"><span>8. 运营数据</span></button>
-      <button class="nav-btn" data-tab="logs"><span>9. 任务日志</span></button>
-      <button class="nav-btn" data-tab="settings"><span>10. 系统配置</span></button>
-    </nav>
-    <div class="sidebar-foot">
-      <div>存储路径: <span class="mono">/opt/ai-media/data</span></div>
-      <div>安全锁: <strong>draft_only（仅草稿箱）</strong></div>
-      <div id="sidebar-wal-info">SQLite: WAL + 自动备份</div>
+  </section>
+
+  <section id="onboarding-screen" class="onboarding-screen hidden" aria-label="首次配置微信公众号">
+    <div class="onboarding-card">
+      <div class="onboarding-head">
+        <span class="badge badge-blue">首次登录引导</span>
+        <h2>首次配置微信公众号</h2>
+        <p>填写公众号开发者凭证后即可推送文章至草稿箱。保存后此引导将自动隐藏，后续可在「系统配置」修改。</p>
+      </div>
+
+      <div class="alert alert-warn">
+        <strong>IP 白名单提醒：</strong>请先在微信公众平台（设置与开发 → 安全中心 / 基本配置 → IP 白名单）添加本台 VPS 的公网出口 IP，否则调用微信接口时会提示 IP 白名单校验失败（错误码 40164）。
+      </div>
+
+      <div id="onboarding-error" class="alert alert-error hidden" role="alert"></div>
+
+      <form id="onboarding-form">
+        <div class="field">
+          <label for="ob-appid">微信公众号 AppID</label>
+          <input type="text" id="ob-appid" placeholder="例如 wx1234567890abcdef" autocomplete="off" />
+        </div>
+        <div class="field">
+          <label for="ob-secret">微信公众号 AppSecret</label>
+          <div class="pwd-wrap">
+            <input type="password" id="ob-secret" placeholder="请输入 32 位 AppSecret" autocomplete="new-password" />
+            <button type="button" class="pwd-toggle" onclick="toggleInputPassword('ob-secret', this)" aria-label="显示或隐藏 AppSecret">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                <circle cx="12" cy="12" r="3"></circle>
+              </svg>
+            </button>
+          </div>
+        </div>
+        <div class="field">
+          <div class="switch-row">
+            <div class="switch-meta">
+              <strong>启用真实草稿箱推送（draft_only）</strong>
+              <span>默认开启：文章直接推送到微信草稿箱，绝不自动发布；关闭则使用本地模拟模式。</span>
+            </div>
+            <label class="switch">
+              <input type="checkbox" id="ob-real-mode" checked />
+              <span class="switch-slider"></span>
+            </label>
+          </div>
+        </div>
+
+        <div class="onboarding-actions">
+          <button type="button" class="btn-link" id="ob-skip-btn">稍后在系统配置中填写</button>
+          <button type="submit" class="btn btn-primary" id="ob-save-btn">保存并进入后台</button>
+        </div>
+      </form>
+    </div>
+  </section>
+
+  <div id="app-shell" class="app-shell hidden">
+    <div id="sidebar-backdrop" class="sidebar-backdrop" onclick="closeMobileSidebar()"></div>
+
+    <aside id="sidebar" class="sidebar">
+      <div class="sidebar-brand">
+        <div class="sidebar-logo" aria-hidden="true">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 20h9"></path>
+            <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"></path>
+          </svg>
+        </div>
+        <div style="min-width:0;">
+          <h1 id="site-title">AI Media</h1>
+          <p>公众号草稿中心</p>
+        </div>
+      </div>
+
+      <nav class="nav" aria-label="主导航">
+        <button class="nav-btn active" data-tab="news">
+          <span class="nav-btn-left">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M4 22h16a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v16a2 2 0 0 1-2 2Zm0 0a2 2 0 0 1-2-2v-9c0-1.1.9-2 2-2h2"></path>
+              <path d="M18 14h-8"></path><path d="M15 18h-5"></path><path d="M10 6h8v4h-8V6Z"></path>
+            </svg>
+            <span>1. 资讯管理</span>
+          </span>
+        </button>
+
+        <button class="nav-btn" data-tab="articles">
+          <span class="nav-btn-left">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+              <polyline points="14 2 14 8 20 8"></polyline>
+              <line x1="16" y1="13" x2="8" y2="13"></line>
+              <line x1="16" y1="17" x2="8" y2="17"></line>
+            </svg>
+            <span>2. 文章管理</span>
+          </span>
+        </button>
+
+        <button class="nav-btn" data-tab="publish">
+          <span class="nav-btn-left">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M22 2 11 13"></path>
+              <path d="m22 2-7 20-4-9-9-4 20-7z"></path>
+            </svg>
+            <span>3. 发布记录</span>
+          </span>
+          <span class="badge badge-yellow hidden" id="nav-retry-badge">0</span>
+        </button>
+
+        <button class="nav-btn" data-tab="settings">
+          <span class="nav-btn-left">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="3"></circle>
+              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9c.26.6.85 1 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+            </svg>
+            <span>4. 系统配置</span>
+          </span>
+        </button>
+      </nav>
+
+      <div class="sidebar-foot">
+        <div>安全锁：<strong>draft_only（仅草稿）</strong></div>
+        <div id="sidebar-wal-info">SQLite: WAL · 自动保留</div>
+        <div id="sidebar-user-info">账号：admin</div>
+      </div>
+    </aside>
+
+    <div class="main">
+      <header class="topbar">
+        <div class="topbar-left">
+          <button type="button" class="mobile-menu-btn" id="mobile-menu-btn" onclick="openMobileSidebar()" aria-label="打开菜单">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+              <line x1="3" y1="6" x2="21" y2="6"></line>
+              <line x1="3" y1="12" x2="21" y2="12"></line>
+              <line x1="3" y1="18" x2="21" y2="18"></line>
+            </svg>
+          </button>
+          <h2 id="page-title">1. 资讯管理</h2>
+        </div>
+
+        <div class="topbar-right">
+          <span class="pill pill-green" id="health-pill" title="服务健康状态">
+            <span class="dot dot-green" id="health-dot"></span>
+            <span id="health-text">服务正常</span>
+          </span>
+          <span class="pill pill-blue hide-mobile" title="严格仅推送至公众号草稿箱，永不自动发布">draft_only</span>
+          <span class="pill" id="disk-pill" title="数据目录磁盘占用">磁盘 --</span>
+
+          <button type="button" class="btn btn-sm logs-btn" id="logs-drawer-btn" onclick="openLogsDrawer()" title="查看全链路任务日志">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+              <line x1="16" y1="13" x2="8" y2="13"></line>
+              <line x1="16" y1="17" x2="8" y2="17"></line>
+              <line x1="10" y1="9" x2="8" y2="9"></line>
+            </svg>
+            <span>日志</span>
+            <span class="alert-dot" id="logs-alert-dot"></span>
+          </button>
+
+          <button type="button" class="btn btn-sm" onclick="refreshCurrentTab()" title="刷新当前页面数据">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="23 4 23 10 17 10"></polyline>
+              <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path>
+            </svg>
+            <span class="hide-mobile">刷新</span>
+          </button>
+
+          <button type="button" class="btn btn-sm btn-ghost" id="logout-btn" onclick="logout()" title="退出登录">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+              <polyline points="16 17 21 12 16 7"></polyline>
+              <line x1="21" y1="12" x2="9" y2="12"></line>
+            </svg>
+            <span>退出登录</span>
+          </button>
+        </div>
+      </header>
+
+      <main class="content">
+        <section class="tab-panel active" id="tab-news">
+          <div class="card">
+            <div class="card-header">
+              <div class="card-title">
+                <span>资讯列表</span>
+                <span class="badge badge-gray num" id="news-count-badge">0 条</span>
+              </div>
+              <div class="toolbar">
+                <input type="text" id="news-q" placeholder="搜索标题、摘要或来源..." onkeydown="if(event.key==='Enter')loadNews()" />
+                <select id="news-status" onchange="loadNews()">
+                  <option value="">全部状态</option>
+                  <option value="candidate">待选</option>
+                  <option value="selected">已选用</option>
+                  <option value="ignored">已忽略</option>
+                </select>
+                <button type="button" class="btn btn-primary btn-sm" onclick="loadNews()">查询</button>
+              </div>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>日期</th>
+                    <th>标题与摘要</th>
+                    <th>来源 / 分类</th>
+                    <th>评分</th>
+                    <th>状态</th>
+                    <th>操作</th>
+                  </tr>
+                </thead>
+                <tbody id="news-tbody"></tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <section class="tab-panel" id="tab-articles">
+          <div class="card">
+            <div class="card-header">
+              <div class="card-title">
+                <span>文章管理</span>
+                <span class="badge badge-gray num" id="articles-count-badge">0 篇</span>
+              </div>
+              <span class="badge badge-blue">仅草稿箱 (draft_only)</span>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>日期</th>
+                    <th>标题 / 副标题</th>
+                    <th>分类</th>
+                    <th>字数</th>
+                    <th>审核</th>
+                    <th>状态</th>
+                    <th>操作</th>
+                  </tr>
+                </thead>
+                <tbody id="articles-tbody"></tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <section class="tab-panel" id="tab-publish">
+          <div class="card hidden" id="publish-retry-card" style="border-color:#fde68a;">
+            <div class="card-header">
+              <div class="card-title">
+                <span>待重试 / 失败草稿队列</span>
+                <span class="badge badge-yellow num" id="retry-count-badge">0 条</span>
+              </div>
+              <button type="button" class="btn btn-primary btn-sm" onclick="processRetryQueue()">立即处理队列</button>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>ID</th>
+                    <th>文章日期</th>
+                    <th>标题</th>
+                    <th>模式</th>
+                    <th>状态</th>
+                    <th>重试次数</th>
+                    <th>下次自动重试</th>
+                    <th>失败原因</th>
+                    <th>操作</th>
+                  </tr>
+                </thead>
+                <tbody id="retry-tbody"></tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-header">
+              <div class="card-title">
+                <span>草稿与人工发布记录</span>
+                <span class="badge badge-gray num" id="publish-count-badge">0 条</span>
+              </div>
+              <span class="muted" style="font-size:12px;">系统仅推送至草稿箱，请在公众号后台审核后人工发布并回填确认</span>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>日期</th>
+                    <th>文章标题</th>
+                    <th>Media ID</th>
+                    <th>状态</th>
+                    <th>链接 / 备注</th>
+                    <th>操作</th>
+                  </tr>
+                </thead>
+                <tbody id="publish-tbody"></tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <section class="tab-panel" id="tab-settings">
+          <div class="card">
+            <div class="card-header">
+              <div class="card-title">
+                <span>微信公众号与推送配置</span>
+                <span class="badge badge-gray" id="cfg-wx-status-badge">检测中</span>
+              </div>
+              <span class="badge badge-blue">发布锁: draft_only</span>
+            </div>
+
+            <div class="runtime-strip" id="settings-runtime-strip">
+              <div class="runtime-item"><div class="k">磁盘占用</div><div class="v num" id="rt-disk">--</div></div>
+              <div class="runtime-item"><div class="k">SQLite 状态</div><div class="v" id="rt-sqlite">WAL</div></div>
+              <div class="runtime-item"><div class="k">待重试草稿</div><div class="v num" id="rt-queued">0</div></div>
+              <div class="runtime-item"><div class="k">当前备份</div><div class="v num" id="rt-backups">0 份</div></div>
+            </div>
+
+            <div class="form-grid">
+              <div class="field">
+                <label for="cfg-appid">微信公众号 AppID</label>
+                <input type="text" id="cfg-appid" placeholder="wx..." autocomplete="off" />
+              </div>
+              <div class="field">
+                <label for="cfg-secret">
+                  <span>微信公众号 AppSecret</span>
+                  <span class="mono" id="cfg-secret-status" style="color:var(--primary);font-weight:500;"></span>
+                </label>
+                <div class="pwd-wrap">
+                  <input type="password" id="cfg-secret" placeholder="留空则保持不变" autocomplete="new-password" />
+                  <button type="button" class="pwd-toggle" onclick="toggleInputPassword('cfg-secret', this)" aria-label="显示或隐藏 AppSecret">
+                    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                      <circle cx="12" cy="12" r="3"></circle>
+                    </svg>
+                  </button>
+                </div>
+              </div>
+
+              <div class="field">
+                <label for="cfg-mock-mode">草稿推送模式</label>
+                <select id="cfg-mock-mode">
+                  <option value="false">真实微信公众号草稿箱模式 (draft_only)</option>
+                  <option value="true">模拟草稿模式 (Dry-Run / Mock)</option>
+                </select>
+              </div>
+              <div class="field">
+                <label for="cfg-draft-retry">失败自动重试队列</label>
+                <select id="cfg-draft-retry">
+                  <option value="true">开启（后台定时指数退避重试）</option>
+                  <option value="false">关闭</option>
+                </select>
+              </div>
+
+              <div class="field">
+                <label for="cfg-data-retain-days">数据保留天数（默认 7 天）</label>
+                <input type="number" id="cfg-data-retain-days" min="1" max="365" value="7" />
+              </div>
+              <div class="field">
+                <label for="cfg-retain">备份保留份数（默认 7 份）</label>
+                <input type="number" id="cfg-retain" min="3" max="365" value="7" />
+              </div>
+
+              <div class="field">
+                <label for="cfg-retry-max">最大自动重试次数</label>
+                <input type="number" id="cfg-retry-max" min="1" max="20" value="5" />
+              </div>
+              <div class="field">
+                <label for="cfg-site-name">站点标题</label>
+                <input type="text" id="cfg-site-name" placeholder="AI Media · 公众号草稿中心" />
+              </div>
+            </div>
+
+            <div class="alert alert-info" style="margin-bottom:14px;">
+              <strong>自动省空间机制：</strong>文章以真实模式成功推送微信草稿箱后，服务端会自动清理该篇文章的本地图片与 incoming 缓存，并按上方“数据保留天数”定期清理过期数据。请确保已在微信公众平台添加 VPS 公网出口 IP 白名单。
+            </div>
+
+            <div class="toolbar">
+              <button type="button" class="btn btn-primary" id="btn-save-settings" onclick="saveSettings()">保存配置</button>
+              <button type="button" class="btn" id="btn-cleanup-now" onclick="runCleanupNow()">立即清理过期/已推图片</button>
+              <button type="button" class="btn btn-success" id="btn-backup-now" onclick="runBackupNow()">一键备份数据库</button>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-header">
+              <div class="card-title">
+                <span>SQLite 数据库备份</span>
+                <span class="badge badge-gray" id="backup-retain-badge">保留最新 7 份</span>
+              </div>
+              <span class="muted mono" style="font-size:12px;">/opt/ai-media/data/backups</span>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>文件名</th>
+                    <th>触发方式</th>
+                    <th>大小</th>
+                    <th>创建时间</th>
+                  </tr>
+                </thead>
+                <tbody id="backups-tbody"></tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+      </main>
+    </div>
+  </div>
+
+  <div class="modal-backdrop" id="article-modal" onclick="if(event.target===this)closeArticleModal()">
+    <div class="modal-box">
+      <div class="modal-head">
+        <h3 id="article-modal-title">查看正文</h3>
+        <div class="toolbar">
+          <button type="button" class="btn btn-sm" onclick="copyModalHtml()">复制 HTML</button>
+          <button type="button" class="btn btn-sm" onclick="closeArticleModal()">关闭</button>
+        </div>
+      </div>
+      <div class="modal-body" id="article-modal-body"></div>
+    </div>
+  </div>
+
+  <div class="modal-backdrop" id="publish-modal" onclick="if(event.target===this)closePublishModal()">
+    <div class="modal-box modal-sm">
+      <div class="modal-head">
+        <h3>标记已人工发布</h3>
+        <button type="button" class="btn btn-sm btn-ghost" onclick="closePublishModal()">关闭</button>
+      </div>
+      <form id="publish-modal-form">
+        <div class="modal-body">
+          <p class="muted" id="publish-modal-subtitle" style="font-size:13px;margin-bottom:14px;"></p>
+          <div class="field">
+            <label for="pub-url-input">公众号文章链接（可选）</label>
+            <input type="url" id="pub-url-input" placeholder="https://mp.weixin.qq.com/s/..." />
+          </div>
+          <div class="field">
+            <label for="pub-notes-input">发布备注</label>
+            <textarea id="pub-notes-input" placeholder="已在公众号后台人工审核并发布"></textarea>
+          </div>
+        </div>
+        <div class="modal-foot">
+          <button type="button" class="btn" onclick="closePublishModal()">取消</button>
+          <button type="submit" class="btn btn-success" id="pub-confirm-btn">确认已发布</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div class="drawer-backdrop" id="logs-drawer-backdrop" onclick="closeLogsDrawer()"></div>
+  <aside class="drawer" id="logs-drawer" aria-label="任务日志抽屉">
+    <div class="drawer-head">
+      <div class="card-title">
+        <span>任务日志</span>
+        <span class="badge badge-gray num" id="drawer-logs-count">0 条</span>
+      </div>
+      <div class="toolbar">
+        <button type="button" class="btn btn-sm" onclick="loadLogs()">刷新</button>
+        <button type="button" class="btn btn-sm btn-ghost" onclick="closeLogsDrawer()">关闭</button>
+      </div>
+    </div>
+    <div class="drawer-filters">
+      <select id="log-stage" onchange="loadLogs()">
+        <option value="">全部阶段</option>
+        <option value="win_collect">Windows 采集</option>
+        <option value="win_produce">Windows 生产</option>
+        <option value="win_sync">Windows 同步</option>
+        <option value="win_analyze">Windows 复盘</option>
+        <option value="ingest">Debian 入库</option>
+        <option value="wechat_draft">公众号草稿</option>
+        <option value="draft_retry">草稿自动重试</option>
+        <option value="publish_record">人工发布确认</option>
+        <option value="cleanup">空间清理</option>
+        <option value="backup">数据库备份</option>
+        <option value="settings">系统配置</option>
+      </select>
+      <select id="log-status" onchange="loadLogs()">
+        <option value="">全部状态</option>
+        <option value="completed">已完成</option>
+        <option value="warning">警告</option>
+        <option value="failed">失败</option>
+      </select>
+    </div>
+    <div class="drawer-body" id="logs-drawer-body">
+      <div class="empty">加载中...</div>
     </div>
   </aside>
 
-  <div class="main">
-    <header class="topbar">
-      <div class="topbar-left">
-        <h2 id="page-title">1. 资讯管理</h2>
-        <span class="badge badge-green" id="health-badge">服务正常</span>
-        <span class="badge badge-blue">严格仅草稿箱模式 (draft_only)</span>
-        <span class="badge badge-gray" id="backup-status-badge">备份: 检查中</span>
-      </div>
-      <div class="toolbar">
-        <button class="btn" onclick="refreshCurrentTab()">刷新数据</button>
-        <button class="btn btn-primary" onclick="runBackupNow()">一键备份数据库</button>
-      </div>
-    </header>
-
-    <main class="content">
-      <!-- 1. 资讯管理 -->
-      <section class="tab-panel active" id="tab-news">
-        <div class="card">
-          <div class="card-header">
-            <h3>资讯候选池 <span class="badge badge-gray" id="news-count-badge">0 条</span></h3>
-            <div class="toolbar">
-              <input type="text" id="news-q" placeholder="搜索标题/来源，回车查询..." onkeydown="if(event.key==='Enter')loadNews()" />
-              <select id="news-status" onchange="loadNews()">
-                <option value="">全部状态</option>
-                <option value="candidate">待选</option>
-                <option value="selected">已选用</option>
-                <option value="ignored">已忽略</option>
-              </select>
-              <button class="btn btn-primary" onclick="loadNews()">查询</button>
-            </div>
-          </div>
-          <div class="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>日期</th>
-                  <th>标题与摘要</th>
-                  <th>来源 / 分类</th>
-                  <th>评分</th>
-                  <th>状态</th>
-                  <th>操作</th>
-                </tr>
-              </thead>
-              <tbody id="news-tbody"></tbody>
-            </table>
-          </div>
-        </div>
-      </section>
-
-      <!-- 2. 选题管理 -->
-      <section class="tab-panel" id="tab-topics">
-        <div class="card">
-          <div class="card-header"><h3>新增选题</h3></div>
-          <div class="form-grid">
-            <div class="field"><label>日期 (YYYY-MM-DD)</label><input id="topic-date" placeholder="YYYY-MM-DD" /></div>
-            <div class="field"><label>选题标题</label><input id="topic-title" placeholder="输入选题标题" /></div>
-            <div class="field">
-              <label>分类</label>
-              <select id="topic-category">
-                <option value="AI新闻">AI新闻</option>
-                <option value="AI工具">AI工具</option>
-                <option value="AI深度分析">AI深度分析</option>
-                <option value="AI实操教程">AI实操教程</option>
-              </select>
-            </div>
-            <div class="field"><label>备注</label><input id="topic-notes" placeholder="切入角度或参考方向" /></div>
-          </div>
-          <button class="btn btn-primary" onclick="createTopic()">添加选题</button>
-        </div>
-        <div class="card">
-          <div class="card-header">
-            <h3>选题列表</h3>
-            <div class="toolbar">
-              <select id="topic-filter-status" onchange="loadTopics()">
-                <option value="">全部状态</option>
-                <option value="candidate">待选</option>
-                <option value="approved">已立项</option>
-                <option value="produced">已成稿</option>
-                <option value="rejected">已放弃</option>
-              </select>
-            </div>
-          </div>
-          <div class="table-wrap">
-            <table>
-              <thead>
-                <tr><th>日期</th><th>选题标题</th><th>分类</th><th>来源</th><th>评分</th><th>状态</th><th>备注</th><th>操作</th></tr>
-              </thead>
-              <tbody id="topics-tbody"></tbody>
-            </table>
-          </div>
-        </div>
-      </section>
-
-      <!-- 3. 文章管理 -->
-      <section class="tab-panel" id="tab-articles">
-        <div class="card">
-          <div class="card-header">
-            <h3>已同步文章库</h3>
-            <span class="badge badge-blue">发布锁: draft_only</span>
-          </div>
-          <div class="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>日期</th>
-                  <th>封面</th>
-                  <th>标题 / 副标题</th>
-                  <th>分类 / 模板</th>
-                  <th>字数 / 来源</th>
-                  <th>审核</th>
-                  <th>状态</th>
-                  <th>操作</th>
-                </tr>
-              </thead>
-              <tbody id="articles-tbody"></tbody>
-            </table>
-          </div>
-        </div>
-      </section>
-
-      <!-- 4. 文章预览 -->
-      <section class="tab-panel" id="tab-preview">
-        <div class="card">
-          <div class="card-header">
-            <h3>文章预览（公众号排版 + 封面 + 来源 + 审核详情）</h3>
-            <div class="toolbar">
-              <select id="preview-date-select" onchange="loadArticlePreview(this.value)"></select>
-              <button class="btn" onclick="copyPreviewHtml()">复制公众号 HTML</button>
-              <button class="btn btn-primary" onclick="uploadDraftFromPreview()">上传至公众号草稿箱</button>
-            </div>
-          </div>
-          <div id="preview-body" class="empty">请选择一篇文章进行预览</div>
-        </div>
-      </section>
-
-      <!-- 5. 图片管理 -->
-      <section class="tab-panel" id="tab-images">
-        <div class="card">
-          <div class="card-header"><h3>封面图与素材管理</h3></div>
-          <div id="images-grid" class="gallery-grid"></div>
-        </div>
-      </section>
-
-      <!-- 6. 草稿上传 -->
-      <section class="tab-panel" id="tab-drafts">
-        <div class="notice">
-          <strong>安全机制与离线重试说明：</strong>本系统仅对接微信公众号<strong>草稿箱接口</strong>（<code>draft/add</code>，标题 &le;64 字 / 作者 &le;8 字 / 摘要 &le;120 字，HTML 上传前自动清洗），绝不调用自动群发或自动发布接口。失败任务会自动保留在队列中并记录重试次数与下次重试时间，即使 Windows 关机，Debian 后台重试协程仍会持续自动重试。
-        </div>
-        <div class="notice notice-green" id="draft-retry-banner">
-          后台自动重试队列：检查中...
-        </div>
-        <div class="card">
-          <div class="card-header">
-            <h3>草稿箱上传与队列管理</h3>
-            <div class="toolbar">
-              <select id="draft-date-select"></select>
-              <button class="btn btn-primary" onclick="triggerDraftUpload(false)">上传草稿箱</button>
-              <button class="btn" onclick="triggerDraftUpload(true)">模拟失败测试队列</button>
-              <button class="btn btn-success" onclick="processRetryQueue()">立即处理待重试队列</button>
-            </div>
-          </div>
-          <div class="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>ID</th>
-                  <th>文章日期</th>
-                  <th>标题</th>
-                  <th>模式</th>
-                  <th>状态</th>
-                  <th>尝试次数</th>
-                  <th>下次自动重试</th>
-                  <th>Media ID / 错误信息</th>
-                  <th>更新时间</th>
-                  <th>操作</th>
-                </tr>
-              </thead>
-              <tbody id="drafts-tbody"></tbody>
-            </table>
-          </div>
-        </div>
-      </section>
-
-      <!-- 7. 发布记录 -->
-      <section class="tab-panel" id="tab-publish">
-        <div class="card">
-          <div class="card-header"><h3>草稿与人工发布记录</h3></div>
-          <div class="table-wrap">
-            <table>
-              <thead>
-                <tr><th>ID</th><th>文章日期</th><th>标题</th><th>发布模式</th><th>草稿 Media ID</th><th>发布状态</th><th>公众号链接</th><th>备注</th><th>操作</th></tr>
-              </thead>
-              <tbody id="publish-tbody"></tbody>
-            </table>
-          </div>
-        </div>
-      </section>
-
-      <!-- 8. 运营数据 -->
-      <section class="tab-panel" id="tab-metrics">
-        <div class="stats-grid" id="metrics-stats"></div>
-        <div class="card">
-          <div class="card-header"><h3>录入文章运营数据（阅读 / 点赞 / 转发 / 评论 / 收藏）</h3></div>
-          <div class="form-grid">
-            <div class="field"><label>文章日期</label><select id="metric-article-date"></select></div>
-            <div class="field"><label>阅读数</label><input type="number" id="metric-reads" value="0" min="0" /></div>
-            <div class="field"><label>点赞数</label><input type="number" id="metric-likes" value="0" min="0" /></div>
-            <div class="field"><label>转发数</label><input type="number" id="metric-shares" value="0" min="0" /></div>
-            <div class="field"><label>评论数</label><input type="number" id="metric-comments" value="0" min="0" /></div>
-            <div class="field"><label>收藏数</label><input type="number" id="metric-collections" value="0" min="0" /></div>
-          </div>
-          <div class="field" style="margin-bottom:12px;"><label>运营备注</label><input id="metric-notes" placeholder="如：标题点击率较高、推荐流量占比 60%" /></div>
-          <button class="btn btn-primary" onclick="submitMetrics()">保存运营数据</button>
-        </div>
-        <div class="card">
-          <div class="card-header"><h3>历史运营明细</h3></div>
-          <div class="table-wrap">
-            <table>
-              <thead>
-                <tr><th>记录日期</th><th>文章日期</th><th>文章标题</th><th>阅读</th><th>点赞</th><th>转发</th><th>评论</th><th>收藏</th><th>备注</th></tr>
-              </thead>
-              <tbody id="metrics-tbody"></tbody>
-            </table>
-          </div>
-        </div>
-      </section>
-
-      <!-- 9. 任务日志 -->
-      <section class="tab-panel" id="tab-logs">
-        <div class="card">
-          <div class="card-header">
-            <h3>全链路任务日志</h3>
-            <div class="toolbar">
-              <select id="log-stage" onchange="loadLogs()">
-                <option value="">全部阶段</option>
-                <option value="win_collect">Windows 采集</option>
-                <option value="win_produce">Windows 生产</option>
-                <option value="win_sync">Windows 同步</option>
-                <option value="win_analyze">Windows 复盘</option>
-                <option value="ingest">Debian 入库</option>
-                <option value="wechat_draft">公众号草稿</option>
-                <option value="draft_retry">草稿自动重试</option>
-                <option value="publish_record">人工发布确认</option>
-                <option value="backup">数据库备份</option>
-                <option value="cleanup">空间自动清理</option>
-                <option value="metrics">运营数据</option>
-                <option value="settings">系统配置</option>
-              </select>
-              <select id="log-status" onchange="loadLogs()">
-                <option value="">全部状态</option>
-                <option value="completed">已完成</option>
-                <option value="warning">警告</option>
-                <option value="failed">失败</option>
-              </select>
-              <button class="btn" onclick="loadLogs()">筛选</button>
-            </div>
-          </div>
-          <div class="table-wrap">
-            <table>
-              <thead>
-                <tr><th>时间</th><th>业务日期</th><th>阶段</th><th>级别</th><th>状态</th><th>日志内容</th></tr>
-              </thead>
-              <tbody id="logs-tbody"></tbody>
-            </table>
-          </div>
-        </div>
-      </section>
-
-      <!-- 10. 系统配置 -->
-      <section class="tab-panel" id="tab-settings">
-        <div class="card">
-          <div class="card-header">
-            <h3>微信公众号与系统配置</h3>
-            <span class="badge badge-blue">发布模式锁定: draft_only</span>
-          </div>
-          <div class="notice">
-            当前发布模式已永久锁定为 <strong>draft_only（仅上传草稿箱）</strong>，Debian 服务端不包含任何付费 AI API 或自动群发逻辑。内部入库接口 <code>/api/internal/ingest/{date}</code> 仅允许本机回环调用。
-          </div>
-          <div class="notice notice-green" id="settings-runtime-info">
-            运行状态：加载中...
-          </div>
-          <div class="form-grid">
-            <div class="field"><label>站点名称</label><input id="cfg-site-name" /></div>
-            <div class="field"><label>微信公众号 AppID</label><input id="cfg-appid" placeholder="wx..." /></div>
-            <div class="field">
-              <label>微信公众号 AppSecret <span id="cfg-secret-status" class="mono" style="color:var(--primary);"></span></label>
-              <input type="password" id="cfg-secret" placeholder="留空则保持不变" autocomplete="new-password" />
-            </div>
-            <div class="field">
-              <label>上传模式开关</label>
-              <select id="cfg-mock-mode">
-                <option value="true">模拟草稿模式 (Dry-Run / Mock)</option>
-                <option value="false">真实微信公众号草稿箱模式</option>
-              </select>
-            </div>
-            <div class="field">
-              <label>后台自动重试草稿队列</label>
-              <select id="cfg-draft-retry">
-                <option value="true">开启（Windows 关机后仍持续重试）</option>
-                <option value="false">关闭</option>
-              </select>
-            </div>
-            <div class="field"><label>最大自动重试次数</label><input type="number" id="cfg-retry-max" min="1" max="20" value="5" /></div>
-            <div class="field">
-              <label>每日自动备份 SQLite</label>
-              <select id="cfg-auto-backup">
-                <option value="true">开启</option>
-                <option value="false">关闭</option>
-              </select>
-            </div>
-            <div class="field"><label>备份保留份数（默认 7）</label><input type="number" id="cfg-retain" min="3" max="365" value="7" /></div>
-          </div>
-          <div class="toolbar">
-            <button class="btn btn-primary" onclick="saveSettings()">保存配置</button>
-            <button class="btn btn-success" onclick="runBackupNow()">立即执行 SQLite 备份</button>
-          </div>
-        </div>
-
-        <div class="card">
-          <div class="card-header">
-            <h3>SQLite 数据库备份列表（/opt/ai-media/data/backups）</h3>
-            <span class="badge badge-gray" id="backup-retain-badge">保留策略: 最新 7 份</span>
-          </div>
-          <div class="table-wrap">
-            <table>
-              <thead>
-                <tr><th>文件名</th><th>触发方式</th><th>大小</th><th>创建时间</th></tr>
-              </thead>
-              <tbody id="backups-tbody"></tbody>
-            </table>
-          </div>
-        </div>
-      </section>
-    </main>
-  </div>
-
-  <!-- Quick Preview Modal -->
-  <div class="modal-backdrop" id="quick-preview-modal" onclick="if(event.target===this)closeQuickPreview()">
-    <div class="modal-box">
-      <div class="modal-head">
-        <strong id="modal-title">文章快速预览</strong>
-        <div class="toolbar">
-          <button class="btn btn-sm btn-primary" id="modal-goto-full">打开完整预览页</button>
-          <button class="btn btn-sm" onclick="closeQuickPreview()">关闭</button>
-        </div>
-      </div>
-      <div class="modal-body" id="modal-body"></div>
-    </div>
-  </div>
-
-  <div class="toast" id="toast"></div>
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
   <script>
     const TAB_TITLES = {
       news: '1. 资讯管理',
-      topics: '2. 选题管理',
-      articles: '3. 文章管理',
-      preview: '4. 文章预览',
-      images: '5. 图片管理',
-      drafts: '6. 草稿上传',
-      publish: '7. 发布记录',
-      metrics: '8. 运营数据',
-      logs: '9. 任务日志',
-      settings: '10. 系统配置'
+      articles: '2. 文章管理',
+      publish: '3. 发布记录',
+      settings: '4. 系统配置'
+    };
+
+    const STAGE_LABELS = {
+      win_collect: 'Windows 采集',
+      win_produce: 'Windows 生产',
+      win_sync: 'Windows 同步',
+      win_analyze: 'Windows 复盘',
+      ingest: 'Debian 入库',
+      wechat_draft: '公众号草稿',
+      draft_retry: '草稿重试',
+      publish_record: '人工发布',
+      cleanup: '空间清理',
+      backup: '数据库备份',
+      settings: '系统配置',
+      auth: '身份认证'
     };
 
     let currentTab = 'news';
-    let cachedArticles = [];
-    let currentPreviewDate = '';
-    let currentPreviewArticle = null;
-    let previewViewMode = 'html';
+    let authState = {
+      authenticated: false,
+      auth_enabled: true,
+      username: 'admin',
+      wechat_configured: false
+    };
+    let onboardingSkipped = false;
+    let modalArticle = null;
+    let modalViewMode = 'html';
+    let pendingPublishRecordId = null;
+
+    function esc(s) {
+      return String(s ?? '').replace(/[&<>"']/g, m => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+      }[m]));
+    }
+
+    function safeUrl(u) {
+      const raw = String(u ?? '').trim();
+      if (!raw) return '#';
+      if (raw.startsWith('/') || /^https?:\/\//i.test(raw)) return raw;
+      return '#';
+    }
+
+    function formatBytes(bytes) {
+      const n = Number(bytes || 0);
+      if (!Number.isFinite(n) || n <= 0) return '0 B';
+      const units = ['B', 'KB', 'MB', 'GB'];
+      let idx = 0;
+      let val = n;
+      while (val >= 1024 && idx < units.length - 1) {
+        val /= 1024;
+        idx++;
+      }
+      return `${idx === 0 ? Math.round(val) : val.toFixed(1)} ${units[idx]}`;
+    }
 
     function toast(msg, kind = 'info') {
       const el = document.getElementById('toast');
@@ -705,30 +1285,46 @@
       window._toastTimer = setTimeout(() => { el.style.display = 'none'; }, 3800);
     }
 
-    function esc(s) {
-      return String(s ?? '').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+    function toggleInputPassword(inputId, btn) {
+      const input = document.getElementById(inputId);
+      if (!input) return;
+      const show = input.type === 'password';
+      input.type = show ? 'text' : 'password';
+      if (btn) btn.setAttribute('aria-pressed', show ? 'true' : 'false');
     }
 
-    function safeUrl(u) {
-      const raw = String(u ?? '').trim();
-      if (!raw) return '#';
-      if (raw.startsWith('/') || /^https?:\/\//i.test(raw)) return raw;
-      return '#';
+    function isSecurityAlert(category) {
+      return String(category || '').includes('安全预警');
     }
 
-    function shanghaiToday() {
-      try {
-        const parts = new Intl.DateTimeFormat('en-CA', {
-          timeZone: 'Asia/Shanghai',
-          year: 'numeric',
-          month: '2-digit',
-          day: '2-digit'
-        }).formatToParts(new Date());
-        const map = Object.fromEntries(parts.map(p => [p.type, p.value]));
-        return `${map.year}-${map.month}-${map.day}`;
-      } catch {
-        return new Date().toISOString().slice(0, 10);
+    function categoryBadge(category) {
+      const label = category || 'AI新闻';
+      if (isSecurityAlert(label)) {
+        return `<span class="badge badge-alert">⚠ ${esc(label)}</span>`;
       }
+      return `<span class="badge badge-gray">${esc(label)}</span>`;
+    }
+
+    function statusBadge(st) {
+      const map = {
+        candidate: ['待选', 'badge-gray'],
+        selected: ['已选用', 'badge-blue'],
+        ignored: ['已忽略', 'badge-gray'],
+        ready: ['待推草稿', 'badge-yellow'],
+        draft_uploaded: ['已入草稿箱', 'badge-blue'],
+        draft_failed: ['推草稿失败', 'badge-red'],
+        published_manual: ['已人工发布', 'badge-green'],
+        success: ['成功', 'badge-green'],
+        failed: ['失败', 'badge-red'],
+        queued: ['自动重试排队中', 'badge-yellow'],
+        draft_ready: ['草稿箱待发布', 'badge-blue'],
+        manual_published: ['已人工发布', 'badge-green'],
+        completed: ['已完成', 'badge-green'],
+        ok: ['正常', 'badge-green'],
+        warning: ['警告', 'badge-yellow']
+      };
+      const [label, cls] = map[st] || [st || '-', 'badge-gray'];
+      return `<span class="badge ${cls}">${esc(label)}</span>`;
     }
 
     function buildWechatSrcdoc(htmlBody) {
@@ -742,46 +1338,221 @@
         pre { background: #0f172a; color: #e2e8f0; padding: 12px; border-radius: 6px; overflow-x: auto; font-size: 13px; }
         code { background: #f1f5f9; padding: 2px 5px; border-radius: 4px; font-size: 90%; }
         pre code { background: transparent; padding: 0; }
-      </style></head><body>${htmlBody || '<p>暂无 HTML 内容</p>'}</body></html>`;
+      </style></head><body>${htmlBody || '<p>暂无 HTML 正文内容</p>'}</body></html>`;
     }
 
     async function api(url, opts = {}) {
+      const { skipAuthRedirect, headers, ...rest } = opts;
       const res = await fetch(url, {
-        headers: { 'Content-Type': 'application/json', ...(opts.headers || {}) },
-        ...opts
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json', ...(headers || {}) },
+        ...rest
       });
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.detail || `HTTP ${res.status}`);
+      if (res.status === 401 && !skipAuthRedirect) {
+        handleUnauthorized(data.detail || '登录状态已失效，请重新登录');
+        const err = new Error(data.detail || '未登录或登录已过期');
+        err.isAuth = true;
+        throw err;
+      }
+      if (!res.ok) {
+        throw new Error(data.detail || `HTTP ${res.status}`);
+      }
       return data;
     }
 
-    function statusBadge(st) {
-      const map = {
-        candidate: ['待选', 'badge-gray'],
-        selected: ['已选用', 'badge-blue'],
-        ignored: ['已忽略', 'badge-gray'],
-        approved: ['已立项', 'badge-blue'],
-        produced: ['已成稿', 'badge-green'],
-        rejected: ['已放弃', 'badge-red'],
-        ready: ['待上传草稿', 'badge-yellow'],
-        draft_uploaded: ['已入草稿箱', 'badge-blue'],
-        draft_failed: ['草稿待重试/失败', 'badge-red'],
-        published_manual: ['已人工发布', 'badge-green'],
-        success: ['成功', 'badge-green'],
-        failed: ['失败', 'badge-red'],
-        queued: ['自动重试排队中', 'badge-yellow'],
-        draft_ready: ['草稿箱待发布', 'badge-blue'],
-        manual_published: ['已人工发布', 'badge-green'],
-        completed: ['已完成', 'badge-green'],
-        ok: ['正常', 'badge-green'],
-        warning: ['警告', 'badge-yellow'],
-      };
-      const [label, cls] = map[st] || [st || '-', 'badge-gray'];
-      return `<span class="badge ${cls}">${esc(label)}</span>`;
+    function showBoot() {
+      document.getElementById('boot-screen').classList.remove('hidden');
+      document.getElementById('login-screen').classList.add('hidden');
+      document.getElementById('onboarding-screen').classList.add('hidden');
+      document.getElementById('app-shell').classList.add('hidden');
+    }
+
+    function showLoginScreen(errorMsg = '') {
+      closeArticleModal();
+      closePublishModal();
+      closeLogsDrawer();
+      closeMobileSidebar();
+      document.getElementById('boot-screen').classList.add('hidden');
+      document.getElementById('onboarding-screen').classList.add('hidden');
+      document.getElementById('app-shell').classList.add('hidden');
+      document.getElementById('login-screen').classList.remove('hidden');
+
+      const errEl = document.getElementById('login-error');
+      if (errorMsg) {
+        errEl.textContent = errorMsg;
+        errEl.classList.remove('hidden');
+      } else {
+        errEl.textContent = '';
+        errEl.classList.add('hidden');
+      }
+      const pwdInput = document.getElementById('login-password');
+      if (pwdInput) {
+        pwdInput.value = '';
+        setTimeout(() => pwdInput.focus(), 40);
+      }
+    }
+
+    function handleUnauthorized(msg) {
+      authState.authenticated = false;
+      showLoginScreen(msg);
+    }
+
+    function showOnboardingScreen() {
+      document.getElementById('boot-screen').classList.add('hidden');
+      document.getElementById('login-screen').classList.add('hidden');
+      document.getElementById('app-shell').classList.add('hidden');
+      document.getElementById('onboarding-screen').classList.remove('hidden');
+      document.getElementById('onboarding-error').classList.add('hidden');
+      document.getElementById('ob-real-mode').checked = true;
+      setTimeout(() => document.getElementById('ob-appid').focus(), 40);
+    }
+
+    async function enterMainApp() {
+      document.getElementById('boot-screen').classList.add('hidden');
+      document.getElementById('login-screen').classList.add('hidden');
+      document.getElementById('onboarding-screen').classList.add('hidden');
+      document.getElementById('app-shell').classList.remove('hidden');
+      document.getElementById('sidebar-user-info').textContent = `账号：${authState.username || 'admin'}`;
+      try {
+        const cfg = await api('/api/config');
+        if (cfg.site_name) document.getElementById('site-title').textContent = cfg.site_name;
+        if (typeof cfg.wechat_configured === 'boolean') {
+          authState.wechat_configured = cfg.wechat_configured;
+        }
+      } catch (e) {
+        if (e && e.isAuth) return;
+      }
+      await refreshCurrentTab();
+    }
+
+    document.getElementById('login-pwd-toggle').addEventListener('click', () => {
+      const input = document.getElementById('login-password');
+      const show = input.type === 'password';
+      input.type = show ? 'text' : 'password';
+      document.getElementById('login-eye-open').classList.toggle('hidden', show);
+      document.getElementById('login-eye-closed').classList.toggle('hidden', !show);
+    });
+
+    document.getElementById('login-form').addEventListener('submit', async (ev) => {
+      ev.preventDefault();
+      const errEl = document.getElementById('login-error');
+      const btn = document.getElementById('login-submit');
+      const username = document.getElementById('login-username').value.trim();
+      const password = document.getElementById('login-password').value;
+      const remember = document.getElementById('login-remember').checked;
+
+      if (!username || !password) {
+        errEl.textContent = '请输入用户名和密码';
+        errEl.classList.remove('hidden');
+        return;
+      }
+
+      errEl.classList.add('hidden');
+      btn.disabled = true;
+      btn.textContent = '登录中...';
+
+      try {
+        const res = await api('/api/auth/login', {
+          method: 'POST',
+          skipAuthRedirect: true,
+          body: JSON.stringify({ username, password, remember })
+        });
+        authState.authenticated = true;
+        authState.username = res.username || username;
+        authState.wechat_configured = Boolean(res.wechat_configured);
+        onboardingSkipped = false;
+        document.getElementById('login-password').value = '';
+
+        if (!authState.wechat_configured) {
+          showOnboardingScreen();
+        } else {
+          await enterMainApp();
+        }
+      } catch (e) {
+        errEl.textContent = e.message || '用户名或密码错误';
+        errEl.classList.remove('hidden');
+      } finally {
+        btn.disabled = false;
+        btn.textContent = '登录后台';
+      }
+    });
+
+    document.getElementById('onboarding-form').addEventListener('submit', async (ev) => {
+      ev.preventDefault();
+      const errEl = document.getElementById('onboarding-error');
+      const btn = document.getElementById('ob-save-btn');
+      const appid = document.getElementById('ob-appid').value.trim();
+      const secret = document.getElementById('ob-secret').value.trim();
+      const realMode = document.getElementById('ob-real-mode').checked;
+
+      if (!appid || !secret) {
+        errEl.textContent = '请完整填写微信公众号 AppID 和 AppSecret（或点击左下角稍后填写）';
+        errEl.classList.remove('hidden');
+        return;
+      }
+
+      errEl.classList.add('hidden');
+      btn.disabled = true;
+      btn.textContent = '正在保存...';
+
+      try {
+        const cfg = await api('/api/config', {
+          method: 'PUT',
+          body: JSON.stringify({
+            wechat_appid: appid,
+            wechat_appsecret: secret,
+            wechat_mock_mode: !realMode
+          })
+        });
+        authState.wechat_configured = Boolean(cfg.wechat_configured ?? true);
+        document.getElementById('ob-secret').value = '';
+        toast('微信公众号配置已保存，已进入管理后台', 'success');
+        await enterMainApp();
+      } catch (e) {
+        if (e && e.isAuth) return;
+        errEl.textContent = '保存失败：' + e.message;
+        errEl.classList.remove('hidden');
+      } finally {
+        btn.disabled = false;
+        btn.textContent = '保存并进入后台';
+      }
+    });
+
+    document.getElementById('ob-skip-btn').addEventListener('click', async () => {
+      onboardingSkipped = true;
+      await enterMainApp();
+    });
+
+    async function logout() {
+      try {
+        await api('/api/auth/logout', { method: 'POST', skipAuthRedirect: true });
+      } catch {}
+      authState.authenticated = false;
+      onboardingSkipped = false;
+      if (authState.auth_enabled) {
+        showLoginScreen('');
+        toast('已安全退出登录', 'info');
+      } else {
+        toast('当前未启用密码校验（ADMIN_PASSWORD 未设置）', 'info');
+      }
+    }
+
+    function openMobileSidebar() {
+      document.getElementById('sidebar').classList.add('mobile-open');
+      document.getElementById('sidebar-backdrop').classList.add('open');
+    }
+
+    function closeMobileSidebar() {
+      document.getElementById('sidebar').classList.remove('mobile-open');
+      document.getElementById('sidebar-backdrop').classList.remove('open');
     }
 
     document.querySelectorAll('.nav-btn').forEach(btn => {
-      btn.addEventListener('click', () => switchTab(btn.dataset.tab));
+      btn.addEventListener('click', () => {
+        closeMobileSidebar();
+        switchTab(btn.dataset.tab);
+      });
     });
 
     function switchTab(tab) {
@@ -794,656 +1565,674 @@
 
     async function refreshHealthBar() {
       try {
-        const h = await api('/health');
-        const hb = document.getElementById('health-badge');
-        hb.textContent = `服务正常 (${(h.time || '').slice(11, 19)})`;
-        hb.className = 'badge badge-green';
-        const bkBadge = document.getElementById('backup-status-badge');
-        if (bkBadge) {
-          bkBadge.textContent = `备份: ${h.backups_count || 0} 份 · ${h.data_retain_days || 7}天清理`;
-        }
+        const h = await api('/health', { skipAuthRedirect: true });
+        const pill = document.getElementById('health-pill');
+        const dot = document.getElementById('health-dot');
+        const txt = document.getElementById('health-text');
+        pill.className = 'pill pill-green';
+        dot.className = 'dot dot-green';
+        txt.textContent = `正常 ${(h.time || '').slice(11, 16)}`;
+
+        const diskHuman = h.disk_usage_human || (h.disk_usage_bytes != null ? formatBytes(h.disk_usage_bytes) : '--');
+        document.getElementById('disk-pill').textContent = `磁盘 ${diskHuman}`;
+
         const walInfo = document.getElementById('sidebar-wal-info');
-        if (walInfo && h.sqlite) {
-          walInfo.textContent = `SQLite: ${String(h.sqlite.journal_mode || 'wal').toUpperCase()} (${h.sqlite.busy_timeout_ms || 5000}ms)`;
+        if (walInfo) {
+          const mode = h.sqlite ? String(h.sqlite.journal_mode || 'wal').toUpperCase() : 'WAL';
+          const retain = Number(h.data_retain_days || 7);
+          walInfo.textContent = `SQLite: ${mode} · 保留 ${retain} 天`;
         }
-        const qBadge = document.getElementById('nav-queued-badge');
-        if (qBadge) {
-          if ((h.queued_drafts || 0) > 0) {
-            qBadge.textContent = String(h.queued_drafts);
-            qBadge.style.display = 'inline-flex';
+
+        const retryBadge = document.getElementById('nav-retry-badge');
+        if (retryBadge) {
+          const q = Number(h.queued_drafts || 0);
+          if (q > 0) {
+            retryBadge.textContent = String(q);
+            retryBadge.classList.remove('hidden');
           } else {
-            qBadge.style.display = 'none';
+            retryBadge.classList.add('hidden');
           }
         }
       } catch {
-        const hb = document.getElementById('health-badge');
-        hb.textContent = '连接异常';
-        hb.className = 'badge badge-red';
+        const pill = document.getElementById('health-pill');
+        const dot = document.getElementById('health-dot');
+        const txt = document.getElementById('health-text');
+        pill.className = 'pill pill-red';
+        dot.className = 'dot dot-red';
+        txt.textContent = '连接异常';
+      }
+    }
+
+    async function refreshLogAlertDot() {
+      try {
+        const data = await api('/api/logs?limit=25');
+        const items = data.items || [];
+        const dot = document.getElementById('logs-alert-dot');
+        const hasErr = items.some(l => l.status === 'failed' || String(l.level || '').toUpperCase() === 'ERROR');
+        const hasWarn = items.some(l => l.status === 'warning' || String(l.level || '').toUpperCase() === 'WARN');
+        dot.className = 'alert-dot' + (hasErr ? ' error' : hasWarn ? ' warn' : '');
+      } catch (e) {
+        if (e && e.isAuth) return;
       }
     }
 
     async function refreshCurrentTab() {
       try {
-        await refreshHealthBar();
+        await Promise.all([refreshHealthBar(), refreshLogAlertDot()]);
         if (currentTab === 'news') await loadNews();
-        else if (currentTab === 'topics') await loadTopics();
         else if (currentTab === 'articles') await loadArticles();
-        else if (currentTab === 'preview') await loadPreviewTab();
-        else if (currentTab === 'images') await loadImages();
-        else if (currentTab === 'drafts') await loadDrafts();
-        else if (currentTab === 'publish') await loadPublishRecords();
-        else if (currentTab === 'metrics') await loadMetrics();
-        else if (currentTab === 'logs') await loadLogs();
+        else if (currentTab === 'publish') await loadPublishTab();
         else if (currentTab === 'settings') await loadSettingsAndBackups();
       } catch (e) {
-        toast('加载失败: ' + e.message, 'error');
+        if (e && e.isAuth) return;
+        toast('加载失败：' + e.message, 'error');
       }
     }
 
-    async function ensureArticlesLoaded() {
-      const data = await api('/api/articles');
-      cachedArticles = data.items || [];
-      const opts = cachedArticles.length
-        ? cachedArticles.map(a => `<option value="${esc(a.date)}">${esc(a.date)} - ${esc(a.title)}</option>`).join('')
-        : '<option value="">暂无文章</option>';
-      ['preview-date-select', 'draft-date-select', 'metric-article-date'].forEach(id => {
-        const el = document.getElementById(id);
-        if (el) {
-          const prev = el.value;
-          el.innerHTML = opts;
-          if (prev && cachedArticles.some(a => a.date === prev)) el.value = prev;
-        }
-      });
-      return cachedArticles;
-    }
-
-    // 1. News
     async function loadNews() {
       const q = document.getElementById('news-q').value.trim();
       const status = document.getElementById('news-status').value;
       const params = new URLSearchParams();
       if (q) params.set('q', q);
       if (status) params.set('status', status);
-      const data = await api('/api/news?' + params.toString());
-      document.getElementById('news-count-badge').textContent = `${data.count || 0} 条`;
+      const data = await api('/api/news' + (params.toString() ? `?${params.toString()}` : ''));
+      const items = data.items || [];
+      document.getElementById('news-count-badge').textContent = `${data.count ?? items.length} 条`;
+
       const tb = document.getElementById('news-tbody');
-      if (!data.items.length) {
-        tb.innerHTML = '<tr><td colspan="6" class="empty">暂无资讯数据（Windows 同步文章与 filtered.json 后自动入库）</td></tr>';
+      if (!items.length) {
+        tb.innerHTML = '<tr><td colspan="6" class="empty">暂无资讯数据（每日采集同步后自动展示）</td></tr>';
         return;
       }
-      tb.innerHTML = data.items.map(n => `
-        <tr>
-          <td style="white-space:nowrap;">${esc(n.date)}</td>
-          <td>
-            <a href="${esc(safeUrl(n.url))}" target="_blank" rel="noopener noreferrer"><strong>${esc(n.title)}</strong></a>
-            <div style="color:var(--muted);font-size:12px;margin-top:4px;">${esc((n.summary || '').slice(0, 140))}</div>
-          </td>
-          <td style="white-space:nowrap;">${esc(n.source_name)}<br><span class="badge badge-gray">${esc(n.category)}</span></td>
-          <td><strong>${esc(n.score)}</strong></td>
-          <td>${statusBadge(n.status)}</td>
-          <td style="white-space:nowrap;">
-            <button class="btn btn-sm btn-primary" data-id="${esc(n.id)}" onclick="promoteNews(this.dataset.id)">加入选题</button>
-            <button class="btn btn-sm" data-id="${esc(n.id)}" onclick="setNewsStatus(this.dataset.id,'ignored')">忽略</button>
-          </td>
-        </tr>
-      `).join('');
+
+      tb.innerHTML = items.map(n => {
+        const isIgnored = n.status === 'ignored';
+        const toggleStatus = isIgnored ? 'candidate' : 'ignored';
+        const toggleLabel = isIgnored ? '恢复待选' : '忽略';
+        return `
+          <tr>
+            <td class="nowrap num">${esc(n.date)}</td>
+            <td class="title-cell">
+              <a href="${esc(safeUrl(n.url))}" target="_blank" rel="noopener noreferrer"><strong>${esc(n.title)}</strong></a>
+              ${n.summary ? `<div class="sub">${esc(String(n.summary).slice(0, 160))}</div>` : ''}
+            </td>
+            <td class="nowrap">
+              <div style="font-weight:500;margin-bottom:4px;">${esc(n.source_name || '-')}</div>
+              ${categoryBadge(n.category)}
+            </td>
+            <td class="num"><strong>${esc(n.score)}</strong></td>
+            <td>${statusBadge(n.status)}</td>
+            <td class="nowrap">
+              <div class="row-actions">
+                <button type="button" class="btn btn-sm" data-id="${esc(n.id)}" data-next="${esc(toggleStatus)}" onclick="setNewsStatus(this.dataset.id, this.dataset.next)">${toggleLabel}</button>
+                <button type="button" class="btn btn-sm btn-danger-ghost" data-id="${esc(n.id)}" onclick="deleteNewsItem(this.dataset.id)">删除</button>
+              </div>
+            </td>
+          </tr>
+        `;
+      }).join('');
     }
 
     async function setNewsStatus(id, status) {
       try {
-        await api(`/api/news/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify({ status }) });
-        toast('资讯状态已更新', 'success');
-        await loadNews();
-      } catch (e) {
-        toast('更新资讯状态失败: ' + e.message, 'error');
-      }
-    }
-
-    async function promoteNews(id) {
-      try {
-        await api(`/api/news/${encodeURIComponent(id)}/promote`, { method: 'POST' });
-        toast('已加入选题管理', 'success');
-        await loadNews();
-      } catch (e) {
-        toast('加入选题失败: ' + e.message, 'error');
-      }
-    }
-
-    // 2. Topics
-    async function loadTopics() {
-      if (!document.getElementById('topic-date').value) {
-        document.getElementById('topic-date').value = shanghaiToday();
-      }
-      const st = document.getElementById('topic-filter-status').value;
-      const url = st ? `/api/topics?status=${encodeURIComponent(st)}` : '/api/topics';
-      const data = await api(url);
-      const tb = document.getElementById('topics-tbody');
-      if (!data.items.length) {
-        tb.innerHTML = '<tr><td colspan="8" class="empty">暂无选题</td></tr>';
-        return;
-      }
-      tb.innerHTML = data.items.map(t => `
-        <tr>
-          <td style="white-space:nowrap;">${esc(t.date)}</td>
-          <td>${t.source_url ? `<a href="${esc(safeUrl(t.source_url))}" target="_blank" rel="noopener noreferrer">${esc(t.title)}</a>` : esc(t.title)}</td>
-          <td><span class="badge badge-gray">${esc(t.category)}</span></td>
-          <td>${esc(t.source_name || '-')}</td>
-          <td>${esc(t.score)}</td>
-          <td>${statusBadge(t.status)}</td>
-          <td>${esc(t.notes || '')}</td>
-          <td style="white-space:nowrap;">
-            <button class="btn btn-sm btn-primary" onclick="updateTopicStatus(${Number(t.id)},'approved')">立项</button>
-            <button class="btn btn-sm btn-success" onclick="updateTopicStatus(${Number(t.id)},'produced')">已成稿</button>
-            <button class="btn btn-sm btn-danger" onclick="deleteTopic(${Number(t.id)})">删除</button>
-          </td>
-        </tr>
-      `).join('');
-    }
-
-    async function createTopic() {
-      try {
-        const title = document.getElementById('topic-title').value.trim();
-        if (!title) return toast('请输入选题标题', 'error');
-        await api('/api/topics', {
-          method: 'POST',
-          body: JSON.stringify({
-            date: document.getElementById('topic-date').value.trim() || shanghaiToday(),
-            title,
-            category: document.getElementById('topic-category').value,
-            notes: document.getElementById('topic-notes').value.trim()
-          })
+        await api(`/api/news/${encodeURIComponent(id)}`, {
+          method: 'PATCH',
+          body: JSON.stringify({ status })
         });
-        document.getElementById('topic-title').value = '';
-        document.getElementById('topic-notes').value = '';
-        toast('选题已添加', 'success');
-        await loadTopics();
+        toast(status === 'ignored' ? '已标记为忽略' : '已恢复为待选', 'success');
+        await loadNews();
       } catch (e) {
-        toast('添加选题失败: ' + e.message, 'error');
+        if (e && e.isAuth) return;
+        toast('更新状态失败：' + e.message, 'error');
       }
     }
 
-    async function updateTopicStatus(id, status) {
+    async function deleteNewsItem(id) {
+      if (!confirm('确认删除这条资讯记录吗？删除后无法恢复。')) return;
       try {
-        await api(`/api/topics/${Number(id)}`, { method: 'PATCH', body: JSON.stringify({ status }) });
-        toast('选题状态已更新', 'success');
-        await loadTopics();
+        await api(`/api/news/${encodeURIComponent(id)}`, { method: 'DELETE' });
+        toast('资讯已删除', 'success');
+        await loadNews();
       } catch (e) {
-        toast('更新选题失败: ' + e.message, 'error');
+        if (e && e.isAuth) return;
+        toast('删除失败：' + e.message, 'error');
       }
     }
 
-    async function deleteTopic(id) {
-      if (!confirm('确认删除该选题吗？')) return;
-      try {
-        await api(`/api/topics/${Number(id)}`, { method: 'DELETE' });
-        toast('选题已删除', 'success');
-        await loadTopics();
-      } catch (e) {
-        toast('删除选题失败: ' + e.message, 'error');
-      }
-    }
-
-    // 3. Articles
     async function loadArticles() {
-      const items = await ensureArticlesLoaded();
+      const data = await api('/api/articles');
+      const items = data.items || [];
+      document.getElementById('articles-count-badge').textContent = `${data.count ?? items.length} 篇`;
       const tb = document.getElementById('articles-tbody');
       if (!items.length) {
-        tb.innerHTML = '<tr><td colspan="8" class="empty">暂无已入库文章</td></tr>';
+        tb.innerHTML = '<tr><td colspan="7" class="empty">暂无已入库文章</td></tr>';
         return;
       }
+
       tb.innerHTML = items.map(a => {
-        const coverSrc = `${safeUrl(a.cover_url)}?v=${encodeURIComponent(a.updated_at || '')}`;
+        const coverCleared = (a.cover_path === '' || a.has_cover === false);
+        const canPush = (a.status === 'draft_failed' || a.status === 'ready');
+        const pushBtnTitle = a.status === 'ready' ? '推送文章到公众号草稿箱' : '重新推送失败的文章到公众号草稿箱';
         return `
           <tr>
-            <td style="white-space:nowrap;"><strong>${esc(a.date)}</strong></td>
-            <td><img src="${esc(coverSrc)}" alt="cover" style="width:96px;height:48px;object-fit:cover;border-radius:6px;border:1px solid var(--border);" /></td>
-            <td>
+            <td class="nowrap num"><strong>${esc(a.date)}</strong></td>
+            <td class="title-cell">
               <strong>${esc(a.title)}</strong>
-              <div style="color:var(--muted);font-size:12px;margin-top:3px;">${esc(a.subtitle || '')}</div>
+              ${a.subtitle ? `<div class="sub">${esc(a.subtitle)}</div>` : ''}
             </td>
-            <td>${esc(a.category)}<br><span class="badge badge-gray">${esc(a.template)}</span></td>
-            <td>${esc(a.word_count)} 字<br>${esc(a.sources_count)} 来源</td>
-            <td>${a.review_passed ? '<span class="badge badge-green">审核通过</span>' : '<span class="badge badge-yellow">待人工复核</span>'}</td>
-            <td>${statusBadge(a.status)}<div style="margin-top:4px;"><span class="badge badge-blue">${esc(a.publish_mode || 'draft_only')}</span></div></td>
-            <td style="white-space:nowrap;">
-              <button class="btn btn-sm" data-date="${esc(a.date)}" onclick="openQuickPreview(this.dataset.date)">快速预览</button>
-              <button class="btn btn-sm btn-primary" data-date="${esc(a.date)}" onclick="openPreview(this.dataset.date)">详情</button>
-              <button class="btn btn-sm btn-success" data-date="${esc(a.date)}" onclick="quickUploadDraft(this.dataset.date)">传草稿箱</button>
+            <td class="nowrap">
+              ${categoryBadge(a.category)}
+              ${a.template ? `<div class="muted" style="font-size:11px;margin-top:4px;">${esc(a.template)}</div>` : ''}
             </td>
-          </tr>
-        `;
-      }).join('');
-    }
-
-    function openPreview(dateStr) {
-      closeQuickPreview();
-      currentPreviewDate = dateStr;
-      switchTab('preview');
-    }
-
-    async function openQuickPreview(dateStr) {
-      try {
-        const a = await api(`/api/articles/${encodeURIComponent(dateStr)}`);
-        document.getElementById('modal-title').textContent = `${a.date} · ${a.title}`;
-        document.getElementById('modal-goto-full').onclick = () => openPreview(a.date);
-        const coverSrc = `${safeUrl(a.cover_url)}?v=${encodeURIComponent(a.updated_at || '')}`;
-        document.getElementById('modal-body').innerHTML = `
-          <img class="cover-preview" src="${esc(coverSrc)}" alt="封面图" />
-          <iframe class="preview-iframe" style="height:56vh;" sandbox="" srcdoc="${esc(buildWechatSrcdoc(a.article_html))}"></iframe>
-        `;
-        document.getElementById('quick-preview-modal').classList.add('open');
-      } catch (e) {
-        toast('快速预览加载失败: ' + e.message, 'error');
-      }
-    }
-
-    function closeQuickPreview() {
-      document.getElementById('quick-preview-modal').classList.remove('open');
-    }
-
-    // 4. Preview
-    async function loadPreviewTab() {
-      const items = await ensureArticlesLoaded();
-      if (!items.length) {
-        document.getElementById('preview-body').innerHTML = '<div class="empty">暂无可预览文章</div>';
-        return;
-      }
-      const target = (currentPreviewDate && items.some(x => x.date === currentPreviewDate)) ? currentPreviewDate : items[0].date;
-      document.getElementById('preview-date-select').value = target;
-      await loadArticlePreview(target);
-    }
-
-    async function loadArticlePreview(dateStr) {
-      if (!dateStr) return;
-      try {
-        currentPreviewDate = dateStr;
-        const a = await api(`/api/articles/${encodeURIComponent(dateStr)}`);
-        currentPreviewArticle = a;
-        renderPreviewBody();
-      } catch (e) {
-        toast('加载文章预览失败: ' + e.message, 'error');
-      }
-    }
-
-    function switchPreviewMode(mode) {
-      previewViewMode = mode;
-      renderPreviewBody();
-    }
-
-    function renderPreviewBody() {
-      const a = currentPreviewArticle;
-      if (!a) return;
-      const sources = (a.sources && a.sources.sources) ? a.sources.sources : [];
-      const checks = (a.review && a.review.checks) ? a.review.checks : {};
-      const issues = (a.review && a.review.issues) ? a.review.issues : [];
-      const coverSrc = `${safeUrl(a.cover_url)}?v=${encodeURIComponent(a.updated_at || '')}`;
-
-      const readerPanel = previewViewMode === 'md'
-        ? `<pre class="md-source">${esc(a.article_md || '暂无 Markdown 内容')}</pre>`
-        : `<iframe class="preview-iframe" sandbox="" srcdoc="${esc(buildWechatSrcdoc(a.article_html))}"></iframe>`;
-
-      document.getElementById('preview-body').innerHTML = `
-        <div class="preview-layout">
-          <div class="article-frame">
-            <img class="cover-preview" src="${esc(coverSrc)}" alt="封面图" />
-            <div class="sub-tabs">
-              <button class="btn btn-sm sub-tab ${previewViewMode === 'html' ? 'active' : ''}" onclick="switchPreviewMode('html')">公众号排版预览（沙箱安全渲染）</button>
-              <button class="btn btn-sm sub-tab ${previewViewMode === 'md' ? 'active' : ''}" onclick="switchPreviewMode('md')">Markdown 原文</button>
-            </div>
-            ${readerPanel}
-          </div>
-          <div>
-            <div class="card" style="padding:14px;">
-              <h3 style="margin-bottom:10px;">文章元数据</h3>
-              <p><strong>日期：</strong>${esc(a.date)}</p>
-              <p><strong>标题：</strong>${esc(a.title)}</p>
-              <p><strong>分类 / 模板：</strong>${esc(a.category)} / ${esc(a.template)}</p>
-              <p><strong>作者：</strong>${esc(a.author)}</p>
-              <p><strong>发布模式：</strong><span class="badge badge-blue">${esc(a.publish_mode || 'draft_only')}</span></p>
-              <p><strong>当前状态：</strong>${statusBadge(a.status)}</p>
-            </div>
-            <div class="card" style="padding:14px;">
-              <h3 style="margin-bottom:10px;">审核详情 (review.json)</h3>
-              <p style="margin-bottom:8px;">结论：${a.review_passed ? '<span class="badge badge-green">通过</span>' : '<span class="badge badge-red">未通过</span>'}</p>
-              ${Object.entries(checks).map(([k, v]) => `<div style="margin:4px 0;">${v ? '✅' : '❌'} <span class="mono">${esc(k)}</span></div>`).join('')}
-              ${issues.length ? `<div style="margin-top:8px;color:var(--danger);">问题：${esc(JSON.stringify(issues))}</div>` : ''}
-            </div>
-            <div class="card" style="padding:14px;">
-              <h3 style="margin-bottom:10px;">参考来源 (${sources.length})</h3>
-              ${sources.length ? sources.map(s => `<div style="margin-bottom:8px;"><a href="${esc(safeUrl(s.url || '#'))}" target="_blank" rel="noopener noreferrer">${esc(s.title || s.url || '来源')}</a><div style="font-size:12px;color:var(--muted);">${esc(s.source_name || s.publisher || '')} ${esc(s.published_at || '')}</div></div>`).join('') : '<div style="color:var(--muted);">无来源记录</div>'}
-            </div>
-          </div>
-        </div>
-      `;
-    }
-
-    async function copyPreviewHtml() {
-      if (!currentPreviewArticle || !currentPreviewArticle.article_html) {
-        return toast('暂无可复制的文章 HTML', 'error');
-      }
-      try {
-        await navigator.clipboard.writeText(currentPreviewArticle.article_html);
-        toast('已复制公众号 HTML 到剪贴板', 'success');
-      } catch {
-        toast('浏览器禁止自动复制，请切换视图手动复制', 'error');
-      }
-    }
-
-    async function uploadDraftFromPreview() {
-      if (!currentPreviewDate) return toast('请先选择文章', 'error');
-      await quickUploadDraft(currentPreviewDate, false);
-      await loadArticlePreview(currentPreviewDate);
-    }
-
-    // 5. Images
-    async function loadImages() {
-      const data = await api('/api/images');
-      const grid = document.getElementById('images-grid');
-      if (!data.items.length) {
-        grid.innerHTML = '<div class="empty">暂无图片素材</div>';
-        return;
-      }
-      grid.innerHTML = data.items.map(img => {
-        const imgSrc = `${safeUrl(img.url)}?v=${encodeURIComponent(img.sha256 || '')}`;
-        return `
-          <div class="img-card">
-            <a href="${esc(imgSrc)}" target="_blank" rel="noopener noreferrer"><img src="${esc(imgSrc)}" alt="${esc(img.filename)}" /></a>
-            <div class="meta">
-              <strong>${esc(img.date)} / ${esc(img.filename)}</strong>
-              <div>文章：${esc(img.article_title || '-')}</div>
-              <div>大小：${(Number(img.size_bytes || 0) / 1024).toFixed(1)} KB · 类型：${esc(img.kind)}</div>
-              <div class="mono" title="${esc(img.sha256)}">SHA256: ${esc((img.sha256 || '').slice(0, 16))}...</div>
-            </div>
-          </div>
-        `;
-      }).join('');
-    }
-
-    // 6. Drafts
-    async function loadDrafts() {
-      await ensureArticlesLoaded();
-      const data = await api('/api/wechat/drafts');
-      const banner = document.getElementById('draft-retry-banner');
-      banner.innerHTML = `<strong>后台自动重试协程：</strong>${data.retry_loop_enabled ? '运行中（每 60 秒自动扫描到期任务，Windows 关机不受影响）' : '已关闭'} · 当前排队待重试：<strong>${Number(data.queued_count || 0)}</strong> 条 · 发布模式：<span class="badge badge-blue">${esc(data.publish_mode || 'draft_only')}</span>`;
-      const tb = document.getElementById('drafts-tbody');
-      if (!data.items.length) {
-        tb.innerHTML = '<tr><td colspan="10" class="empty">暂无草稿上传任务，可点击上方“上传草稿箱”执行</td></tr>';
-        return;
-      }
-      tb.innerHTML = data.items.map(d => {
-        const canRetry = d.status === 'failed' || d.status === 'queued';
-        return `
-          <tr>
-            <td>#${Number(d.id)}</td>
-            <td style="white-space:nowrap;">${esc(d.article_date)}</td>
-            <td>${esc(d.title)}</td>
-            <td><span class="badge ${d.mode === 'real' ? 'badge-blue' : 'badge-gray'}">${d.mode === 'real' ? '真实接口' : '模拟草稿'}</span></td>
-            <td>${statusBadge(d.status)}</td>
-            <td>${Number(d.attempts || 0)} / ${Number(d.max_attempts || 5)}</td>
-            <td class="mono" style="white-space:nowrap;">${esc(d.next_retry_at || '-')}</td>
-            <td class="mono">${d.status === 'success' ? esc(d.media_id) : `<span style="color:var(--danger);">${esc(d.error_message)}</span>`}</td>
-            <td style="white-space:nowrap;">${esc(d.updated_at)}</td>
-            <td style="white-space:nowrap;">
-              ${canRetry ? `<button class="btn btn-sm btn-primary" onclick="retryDraft(${Number(d.id)})">立即重试</button>` : '<span style="color:var(--muted);">-</span>'}
+            <td class="nowrap num">
+              <div><strong>${Number(a.word_count || 0)}</strong> 字</div>
+              <div class="muted" style="font-size:11px;">${Number(a.sources_count || 0)} 来源</div>
+            </td>
+            <td class="nowrap">
+              ${a.review_passed
+                ? '<span class="badge badge-green">审核通过</span>'
+                : '<span class="badge badge-yellow">待人工复核</span>'}
+            </td>
+            <td>
+              <div class="status-stack">
+                ${statusBadge(a.status)}
+                ${coverCleared ? '<span class="badge badge-outline" title="推送草稿成功后已自动清理本地封面图释放磁盘空间">已清图</span>' : ''}
+              </div>
+            </td>
+            <td class="nowrap">
+              <div class="row-actions">
+                <button type="button" class="btn btn-sm" data-date="${esc(a.date)}" onclick="openArticleModal(this.dataset.date)">查看正文</button>
+                ${canPush
+                  ? `<button type="button" class="btn btn-sm btn-primary" data-date="${esc(a.date)}" title="${esc(pushBtnTitle)}" onclick="pushDraftFromArticles(this.dataset.date, this)">重试推草稿</button>`
+                  : ''}
+              </div>
             </td>
           </tr>
         `;
       }).join('');
     }
 
-    async function quickUploadDraft(dateStr, simulateFailure = false) {
+    async function pushDraftFromArticles(dateStr, btnEl) {
+      if (btnEl) {
+        btnEl.disabled = true;
+        btnEl.textContent = '推送中...';
+      }
       try {
         const res = await api(`/api/wechat/draft/${encodeURIComponent(dateStr)}`, {
           method: 'POST',
-          body: JSON.stringify({ simulate_failure: simulateFailure })
+          body: JSON.stringify({ simulate_failure: false })
         });
-        toast(res.message || (res.ok ? '草稿上传成功' : '草稿上传失败'), res.ok ? 'success' : 'error');
-        await refreshHealthBar();
-        if (currentTab === 'drafts') await loadDrafts();
-        if (currentTab === 'articles') await loadArticles();
+        toast(res.message || (res.ok ? '已成功推送至公众号草稿箱' : '推送草稿失败'), res.ok ? 'success' : 'error');
+        await Promise.all([refreshHealthBar(), refreshLogAlertDot(), loadArticles()]);
       } catch (e) {
-        toast('草稿上传请求异常: ' + e.message, 'error');
+        if (e && e.isAuth) return;
+        toast('推送草稿失败：' + e.message, 'error');
+        if (btnEl) {
+          btnEl.disabled = false;
+          btnEl.textContent = '重试推草稿';
+        }
       }
     }
 
-    async function triggerDraftUpload(simulateFailure) {
-      const dateStr = document.getElementById('draft-date-select').value;
-      if (!dateStr) return toast('暂无可上传的文章', 'error');
-      await quickUploadDraft(dateStr, simulateFailure);
-    }
-
-    async function retryDraft(taskId) {
+    async function openArticleModal(dateStr) {
       try {
-        const res = await api(`/api/wechat/draft/retry/${Number(taskId)}`, { method: 'POST' });
-        toast(res.message || (res.ok ? '重试成功' : '重试失败'), res.ok ? 'success' : 'error');
-        await refreshHealthBar();
-        await loadDrafts();
+        const a = await api(`/api/articles/${encodeURIComponent(dateStr)}`);
+        modalArticle = a;
+        modalViewMode = 'html';
+        document.getElementById('article-modal-title').textContent = `${a.date} · ${a.title}`;
+        renderArticleModalBody();
+        document.getElementById('article-modal').classList.add('open');
       } catch (e) {
-        toast('重试失败: ' + e.message, 'error');
+        if (e && e.isAuth) return;
+        toast('加载正文失败：' + e.message, 'error');
       }
     }
 
-    async function processRetryQueue() {
+    function closeArticleModal() {
+      document.getElementById('article-modal').classList.remove('open');
+      modalArticle = null;
+    }
+
+    function switchModalView(mode) {
+      modalViewMode = mode;
+      renderArticleModalBody();
+    }
+
+    function renderArticleModalBody() {
+      const a = modalArticle;
+      if (!a) return;
+      const coverCleared = (a.cover_path === '' || a.has_cover === false || !a.cover_url);
+      const coverSrc = !coverCleared ? `${safeUrl(a.cover_url)}?v=${encodeURIComponent(a.updated_at || '')}` : '';
+      const sources = (a.sources && Array.isArray(a.sources.sources)) ? a.sources.sources : [];
+      const checks = (a.review && a.review.checks) ? a.review.checks : {};
+      const issues = (a.review && Array.isArray(a.review.issues)) ? a.review.issues : [];
+
+      let bodyPanel = '';
+      if (modalViewMode === 'md') {
+        bodyPanel = `<pre class="md-source">${esc(a.article_md || '暂无 Markdown 原文')}</pre>`;
+      } else if (modalViewMode === 'meta') {
+        const checkHtml = Object.keys(checks).length
+          ? Object.entries(checks).map(([k, v]) => `<div style="margin:4px 0;">${v ? '✅' : '❌'} <span class="mono">${esc(k)}</span></div>`).join('')
+          : '<div class="muted">无详细检查项</div>';
+        const srcHtml = sources.length
+          ? sources.map(s => `
+              <div style="margin-bottom:8px;">
+                <a href="${esc(safeUrl(s.url || '#'))}" target="_blank" rel="noopener noreferrer">${esc(s.title || s.url || '参考链接')}</a>
+                <div class="muted" style="font-size:12px;">${esc(s.source_name || s.publisher || '')} ${esc(s.published_at || '')}</div>
+              </div>
+            `).join('')
+          : '<div class="muted">暂无参考来源</div>';
+        bodyPanel = `
+          <div class="meta-panel">
+            <div class="meta-box">
+              <h4>审核结果</h4>
+              <div style="margin-bottom:8px;">${a.review_passed ? '<span class="badge badge-green">审核通过</span>' : '<span class="badge badge-yellow">待人工复核</span>'}</div>
+              ${checkHtml}
+              ${issues.length ? `<div style="margin-top:8px;color:var(--danger);">问题：${esc(JSON.stringify(issues))}</div>` : ''}
+            </div>
+            <div class="meta-box">
+              <h4>参考来源 (${sources.length})</h4>
+              ${srcHtml}
+            </div>
+          </div>
+        `;
+      } else {
+        bodyPanel = `
+          ${coverSrc ? `<img class="cover-preview" src="${esc(coverSrc)}" alt="文章封面" onerror="this.style.display='none'" />` : ''}
+          <iframe class="preview-iframe" sandbox="" srcdoc="${esc(buildWechatSrcdoc(a.article_html))}"></iframe>
+        `;
+      }
+
+      document.getElementById('article-modal-body').innerHTML = `
+        <div class="preview-meta">
+          ${categoryBadge(a.category)}
+          ${statusBadge(a.status)}
+          ${coverCleared ? '<span class="badge badge-outline">已清图（推送后自动释放空间）</span>' : ''}
+          <span>作者：${esc(a.author || 'AI Media')}</span>
+          <span>字数：${Number(a.word_count || 0)}</span>
+          <span>来源：${sources.length}</span>
+        </div>
+        <div class="sub-tabs">
+          <button type="button" class="btn btn-sm sub-tab ${modalViewMode === 'html' ? 'active' : ''}" onclick="switchModalView('html')">公众号排版预览</button>
+          <button type="button" class="btn btn-sm sub-tab ${modalViewMode === 'md' ? 'active' : ''}" onclick="switchModalView('md')">Markdown 原文</button>
+          <button type="button" class="btn btn-sm sub-tab ${modalViewMode === 'meta' ? 'active' : ''}" onclick="switchModalView('meta')">审核与来源</button>
+        </div>
+        ${bodyPanel}
+      `;
+    }
+
+    async function copyModalHtml() {
+      if (!modalArticle || !modalArticle.article_html) {
+        return toast('暂无可复制的 HTML 内容', 'error');
+      }
       try {
-        const res = await api('/api/wechat/drafts/process-queue', { method: 'POST' });
-        toast(`队列扫描完成：处理 ${res.processed || 0} 条，成功 ${res.succeeded || 0} 条`, 'success');
-        await refreshHealthBar();
-        await loadDrafts();
-      } catch (e) {
-        toast('处理队列失败: ' + e.message, 'error');
+        await navigator.clipboard.writeText(modalArticle.article_html);
+        toast('已复制公众号 HTML 到剪贴板', 'success');
+      } catch {
+        toast('剪贴板受限，请切换至 Markdown 视图手动复制', 'error');
       }
     }
 
-    // 7. Publish Records
-    async function loadPublishRecords() {
-      const data = await api('/api/publish-records');
+    async function loadPublishTab() {
+      const [pubData, draftData] = await Promise.all([
+        api('/api/publish-records'),
+        api('/api/wechat/drafts')
+      ]);
+
+      const pendingTasks = (draftData.items || []).filter(d => d.status === 'queued' || d.status === 'failed');
+      const retryCard = document.getElementById('publish-retry-card');
+      const retryBadge = document.getElementById('nav-retry-badge');
+
+      if (pendingTasks.length > 0) {
+        retryCard.classList.remove('hidden');
+        document.getElementById('retry-count-badge').textContent = `${pendingTasks.length} 条`;
+        if (retryBadge) {
+          retryBadge.textContent = String(pendingTasks.length);
+          retryBadge.classList.remove('hidden');
+        }
+        document.getElementById('retry-tbody').innerHTML = pendingTasks.map(d => `
+          <tr>
+            <td class="num">#${Number(d.id)}</td>
+            <td class="nowrap num">${esc(d.article_date)}</td>
+            <td><strong>${esc(d.title)}</strong></td>
+            <td><span class="badge ${d.mode === 'real' ? 'badge-blue' : 'badge-gray'}">${d.mode === 'real' ? '真实' : '模拟'}</span></td>
+            <td>${statusBadge(d.status)}</td>
+            <td class="num">${Number(d.attempts || 0)} / ${Number(d.max_attempts || 5)}</td>
+            <td class="mono nowrap">${esc(d.next_retry_at || '-')}</td>
+            <td style="color:var(--danger);font-size:12px;max-width:260px;word-break:break-word;">${esc(d.error_message || '-')}</td>
+            <td class="nowrap">
+              <button type="button" class="btn btn-sm btn-primary" onclick="retryDraftTask(${Number(d.id)}, this)">立即重试</button>
+            </td>
+          </tr>
+        `).join('');
+      } else {
+        retryCard.classList.add('hidden');
+        if (retryBadge) retryBadge.classList.add('hidden');
+      }
+
+      const records = pubData.items || [];
+      document.getElementById('publish-count-badge').textContent = `${pubData.count ?? records.length} 条`;
       const tb = document.getElementById('publish-tbody');
-      if (!data.items.length) {
-        tb.innerHTML = '<tr><td colspan="9" class="empty">暂无发布记录（上传草稿箱后自动生成）</td></tr>';
+      if (!records.length) {
+        tb.innerHTML = '<tr><td colspan="6" class="empty">暂无草稿或发布记录（文章推送草稿箱后自动生成）</td></tr>';
         return;
       }
-      tb.innerHTML = data.items.map(r => `
+
+      tb.innerHTML = records.map(r => `
         <tr>
-          <td>#${Number(r.id)}</td>
-          <td style="white-space:nowrap;">${esc(r.article_date)}</td>
-          <td>${esc(r.title)}</td>
-          <td><span class="badge badge-blue">${esc(r.publish_mode || 'draft_only')}</span></td>
-          <td class="mono">${esc(r.draft_media_id || '-')}</td>
-          <td>${statusBadge(r.status)}</td>
-          <td>${r.published_url ? `<a href="${esc(safeUrl(r.published_url))}" target="_blank" rel="noopener noreferrer">查看文章</a>` : '-'}</td>
-          <td>${esc(r.notes || '')}</td>
-          <td style="white-space:nowrap;">
+          <td class="nowrap num"><strong>${esc(r.article_date)}</strong></td>
+          <td><strong>${esc(r.title)}</strong></td>
+          <td class="mono">
+            ${r.draft_media_id
+              ? `<span title="${esc(r.draft_media_id)}">${esc(r.draft_media_id)}</span>`
+              : '<span class="muted">-</span>'}
+          </td>
+          <td class="nowrap">${statusBadge(r.status)}</td>
+          <td>
+            ${r.published_url
+              ? `<div><a href="${esc(safeUrl(r.published_url))}" target="_blank" rel="noopener noreferrer">查看公众号文章</a></div>`
+              : ''}
+            <div class="muted" style="font-size:12px;">${esc(r.notes || '-')}</div>
+          </td>
+          <td class="nowrap">
             ${r.status !== 'manual_published'
-              ? `<button class="btn btn-sm btn-success" onclick="markManualPublished(${Number(r.id)})">标记已人工发布</button>`
+              ? `<button type="button" class="btn btn-sm btn-success" data-id="${Number(r.id)}" data-title="${esc(r.title)}" data-notes="${esc(r.notes || '')}" onclick="openPublishModal(Number(this.dataset.id), this.dataset.title, this.dataset.notes)">标记已人工发布</button>`
               : '<span class="badge badge-green">已完成</span>'}
           </td>
         </tr>
       `).join('');
     }
 
-    async function markManualPublished(id) {
-      const url = prompt('请输入公众号正式文章链接（可留空，点击“取消”中止操作）：', '');
-      if (url === null) return;
-      const notes = prompt('发布备注（可留空，点击“取消”中止操作）：', '已在公众号后台人工审核并发布');
-      if (notes === null) return;
+    async function retryDraftTask(taskId, btnEl) {
+      if (btnEl) {
+        btnEl.disabled = true;
+        btnEl.textContent = '重试中...';
+      }
       try {
-        await api(`/api/publish-records/${Number(id)}`, {
-          method: 'PATCH',
-          body: JSON.stringify({ status: 'manual_published', published_url: url.trim(), notes: notes.trim() })
-        });
-        toast('已更新为人工发布完成', 'success');
-        await loadPublishRecords();
+        const res = await api(`/api/wechat/draft/retry/${Number(taskId)}`, { method: 'POST' });
+        toast(res.message || (res.ok ? '草稿重试成功' : '重试仍未成功'), res.ok ? 'success' : 'error');
+        await Promise.all([refreshHealthBar(), refreshLogAlertDot(), loadPublishTab()]);
       } catch (e) {
-        toast('更新发布记录失败: ' + e.message, 'error');
+        if (e && e.isAuth) return;
+        toast('重试失败：' + e.message, 'error');
+        if (btnEl) {
+          btnEl.disabled = false;
+          btnEl.textContent = '立即重试';
+        }
       }
     }
 
-    // 8. Metrics
-    async function loadMetrics() {
-      await ensureArticlesLoaded();
-      const [summary, list] = await Promise.all([api('/api/analytics/summary'), api('/api/metrics')]);
-      const ms = summary.metrics_summary || {};
-      const ac = summary.article_counts || {};
-      document.getElementById('metrics-stats').innerHTML = `
-        <div class="stat-card"><div class="label">已入库文章</div><div class="val">${Number(ac.total || 0)}</div></div>
-        <div class="stat-card"><div class="label">已入草稿箱</div><div class="val">${Number(ac.draft_uploaded || 0)}</div></div>
-        <div class="stat-card"><div class="label">累计阅读</div><div class="val">${Number(ms.total_reads || 0)}</div></div>
-        <div class="stat-card"><div class="label">累计点赞</div><div class="val">${Number(ms.total_likes || 0)}</div></div>
-        <div class="stat-card"><div class="label">累计转发</div><div class="val">${Number(ms.total_shares || 0)}</div></div>
-        <div class="stat-card"><div class="label">篇均阅读</div><div class="val">${Number(ms.avg_reads || 0)}</div></div>
-      `;
-      const tb = document.getElementById('metrics-tbody');
-      if (!list.items.length) {
-        tb.innerHTML = '<tr><td colspan="9" class="empty">暂无运营数据记录</td></tr>';
-        return;
-      }
-      tb.innerHTML = list.items.map(m => `
-        <tr>
-          <td style="white-space:nowrap;">${esc(m.recorded_date)}</td>
-          <td style="white-space:nowrap;">${esc(m.article_date)}</td>
-          <td>${esc(m.article_title || '-')}</td>
-          <td><strong>${Number(m.reads || 0)}</strong></td>
-          <td>${Number(m.likes || 0)}</td>
-          <td>${Number(m.shares || 0)}</td>
-          <td>${Number(m.comments || 0)}</td>
-          <td>${Number(m.collections || 0)}</td>
-          <td>${esc(m.notes || '')}</td>
-        </tr>
-      `).join('');
-    }
-
-    async function submitMetrics() {
-      const article_date = document.getElementById('metric-article-date').value;
-      if (!article_date) return toast('请先同步至少一篇文章', 'error');
+    async function processRetryQueue() {
       try {
-        await api('/api/metrics', {
-          method: 'POST',
+        const res = await api('/api/wechat/drafts/process-queue', { method: 'POST' });
+        toast(`队列处理完成：共 ${res.processed || 0} 条，成功 ${res.succeeded || 0} 条`, 'success');
+        await Promise.all([refreshHealthBar(), refreshLogAlertDot(), loadPublishTab()]);
+      } catch (e) {
+        if (e && e.isAuth) return;
+        toast('队列处理失败：' + e.message, 'error');
+      }
+    }
+
+    function openPublishModal(recordId, title, existingNotes) {
+      pendingPublishRecordId = recordId;
+      document.getElementById('publish-modal-subtitle').textContent = `确认文章《${title}》已在微信公众号后台人工审核并发布：`;
+      document.getElementById('pub-url-input').value = '';
+      document.getElementById('pub-notes-input').value = existingNotes && !existingNotes.includes('待人工')
+        ? existingNotes
+        : '已在公众号后台人工审核并发布';
+      document.getElementById('publish-modal').classList.add('open');
+      setTimeout(() => document.getElementById('pub-url-input').focus(), 40);
+    }
+
+    function closePublishModal() {
+      document.getElementById('publish-modal').classList.remove('open');
+      pendingPublishRecordId = null;
+    }
+
+    document.getElementById('publish-modal-form').addEventListener('submit', async (ev) => {
+      ev.preventDefault();
+      if (!pendingPublishRecordId) return;
+      const btn = document.getElementById('pub-confirm-btn');
+      btn.disabled = true;
+      btn.textContent = '提交中...';
+      try {
+        await api(`/api/publish-records/${Number(pendingPublishRecordId)}`, {
+          method: 'PATCH',
           body: JSON.stringify({
-            article_date,
-            reads: Math.max(0, Number(document.getElementById('metric-reads').value || 0)),
-            likes: Math.max(0, Number(document.getElementById('metric-likes').value || 0)),
-            shares: Math.max(0, Number(document.getElementById('metric-shares').value || 0)),
-            comments: Math.max(0, Number(document.getElementById('metric-comments').value || 0)),
-            collections: Math.max(0, Number(document.getElementById('metric-collections').value || 0)),
-            notes: document.getElementById('metric-notes').value.trim()
+            status: 'manual_published',
+            published_url: document.getElementById('pub-url-input').value.trim(),
+            notes: document.getElementById('pub-notes-input').value.trim()
           })
         });
-        ['metric-reads', 'metric-likes', 'metric-shares', 'metric-comments', 'metric-collections'].forEach(id => {
-          document.getElementById(id).value = '0';
-        });
-        document.getElementById('metric-notes').value = '';
-        toast('运营数据已录入', 'success');
-        await loadMetrics();
+        closePublishModal();
+        toast('已标记为人工发布完成', 'success');
+        await Promise.all([refreshLogAlertDot(), loadPublishTab()]);
       } catch (e) {
-        toast('录入运营数据失败: ' + e.message, 'error');
+        if (e && e.isAuth) return;
+        toast('更新发布记录失败：' + e.message, 'error');
+      } finally {
+        btn.disabled = false;
+        btn.textContent = '确认已发布';
       }
-    }
+    });
 
-    // 9. Logs
-    async function loadLogs() {
-      const stage = document.getElementById('log-stage').value;
-      const status = document.getElementById('log-status').value;
-      const params = new URLSearchParams();
-      if (stage) params.set('stage', stage);
-      if (status) params.set('status', status);
-      const url = params.toString() ? `/api/logs?${params.toString()}` : '/api/logs';
-      const data = await api(url);
-      const tb = document.getElementById('logs-tbody');
-      if (!data.items.length) {
-        tb.innerHTML = '<tr><td colspan="6" class="empty">暂无任务日志</td></tr>';
-        return;
-      }
-      tb.innerHTML = data.items.map(l => `
-        <tr>
-          <td style="white-space:nowrap;">${esc(l.created_at)}</td>
-          <td style="white-space:nowrap;">${esc(l.date)}</td>
-          <td><span class="badge badge-gray">${esc(l.stage)}</span></td>
-          <td>${esc(l.level)}</td>
-          <td>${statusBadge(l.status)}</td>
-          <td>${esc(l.message)}</td>
-        </tr>
-      `).join('');
-    }
-
-    // 10. Settings & Backups
     async function loadSettingsAndBackups() {
       const [cfg, bk] = await Promise.all([api('/api/config'), api('/api/backups')]);
-      document.getElementById('cfg-site-name').value = cfg.site_name || '';
+
+      const hasSecret = Boolean(cfg.has_wechat_appsecret ?? cfg.has_app_secret);
+      const maskedSecret = cfg.wechat_appsecret_masked || cfg.app_secret || '****';
+      const configured = Boolean(cfg.wechat_configured ?? (cfg.wechat_appid && hasSecret));
+      authState.wechat_configured = configured;
+      const wxBadge = document.getElementById('cfg-wx-status-badge');
+      wxBadge.textContent = configured ? '公众号已配置' : '尚未配置公众号';
+      wxBadge.className = 'badge ' + (configured ? 'badge-green' : 'badge-yellow');
+
       document.getElementById('cfg-appid').value = cfg.wechat_appid || '';
       document.getElementById('cfg-secret').value = '';
-      document.getElementById('cfg-secret').placeholder = cfg.has_app_secret
-        ? `已配置 (${cfg.app_secret})，留空则保持不变`
-        : '尚未配置 AppSecret';
-      document.getElementById('cfg-secret-status').textContent = cfg.has_app_secret
-        ? `(已配置: ${cfg.app_secret})`
-        : '(未配置)';
+      document.getElementById('cfg-secret').placeholder = hasSecret
+        ? `已配置 (${maskedSecret})，留空则保持不变`
+        : '请输入 AppSecret';
+      document.getElementById('cfg-secret-status').textContent = hasSecret
+        ? `已配置 ${maskedSecret}`
+        : '未配置';
+
       document.getElementById('cfg-mock-mode').value = String(Boolean(cfg.wechat_mock_mode));
       document.getElementById('cfg-draft-retry').value = String(Boolean(cfg.draft_retry_enabled));
-      document.getElementById('cfg-retry-max').value = cfg.draft_retry_max_attempts || 5;
-      document.getElementById('cfg-auto-backup').value = String(Boolean(cfg.auto_backup_enabled));
-      document.getElementById('cfg-retain').value = cfg.backup_retain_count || 7;
+      document.getElementById('cfg-retry-max').value = Number(cfg.draft_retry_max_attempts || 5);
+      document.getElementById('cfg-data-retain-days').value = Number(cfg.data_retain_days || 7);
+      document.getElementById('cfg-retain').value = Number(cfg.backup_retain_count || 7);
+      document.getElementById('cfg-site-name').value = cfg.site_name || '';
+
       if (cfg.site_name) document.getElementById('site-title').textContent = cfg.site_name;
 
+      const diskHuman = cfg.disk_usage_human || (cfg.disk_usage_bytes != null ? formatBytes(cfg.disk_usage_bytes) : '--');
+      document.getElementById('rt-disk').textContent = diskHuman;
       const sql = cfg.sqlite || {};
-      document.getElementById('settings-runtime-info').innerHTML =
-        `SQLite 日志模式：<strong>${esc(String(sql.journal_mode || 'wal').toUpperCase())}</strong> · 数据保留：<strong>${Number(cfg.data_retain_days || 7)} 天自动清理</strong> · 当前备份：<strong>${Number(cfg.backups_count || 0)}</strong> 份（保留最新 ${Number(cfg.backup_retain_count || 7)} 份）· 待重试草稿：<strong>${Number(cfg.queued_drafts || 0)}</strong> 条`;
-      document.getElementById('backup-retain-badge').textContent = `保留策略: 最新 ${Number(bk.retain_count || 7)} 份（当前 ${Number(bk.count || 0)} 份）`;
+      document.getElementById('rt-sqlite').textContent = `${String(sql.journal_mode || 'wal').toUpperCase()} (${Number(sql.busy_timeout_ms || 5000)}ms)`;
+      document.getElementById('rt-queued').textContent = `${Number(cfg.queued_drafts || 0)} 条`;
+      document.getElementById('rt-backups').textContent = `${Number(cfg.backups_count || 0)} 份`;
+
+      const retainCount = Number(bk.retain_count || cfg.backup_retain_count || 7);
+      document.getElementById('backup-retain-badge').textContent = `保留最新 ${retainCount} 份 · 当前 ${Number(bk.count || 0)} 份`;
 
       const tb = document.getElementById('backups-tbody');
-      if (!bk.items.length) {
-        tb.innerHTML = '<tr><td colspan="4" class="empty">暂无备份文件，点击“立即执行 SQLite 备份”创建</td></tr>';
+      const items = bk.items || [];
+      if (!items.length) {
+        tb.innerHTML = '<tr><td colspan="4" class="empty">暂无备份文件，点击上方“一键备份数据库”即可创建</td></tr>';
         return;
       }
-      tb.innerHTML = bk.items.map(b => `
+      tb.innerHTML = items.map(b => `
         <tr>
           <td class="mono">${esc(b.filename)}</td>
-          <td>${b.trigger === 'scheduled' ? '每日自动' : '手动触发'}</td>
-          <td>${(Number(b.size_bytes || 0) / 1024).toFixed(1)} KB</td>
-          <td>${esc(b.created_at)}</td>
+          <td>${b.trigger === 'scheduled' ? '<span class="badge badge-gray">每日自动</span>' : '<span class="badge badge-blue">手动触发</span>'}</td>
+          <td class="num">${formatBytes(b.size_bytes)}</td>
+          <td class="nowrap num">${esc(b.created_at)}</td>
         </tr>
       `).join('');
     }
 
     async function saveSettings() {
+      const btn = document.getElementById('btn-save-settings');
+      btn.disabled = true;
+      btn.textContent = '保存中...';
       try {
+        const retainDays = Math.min(365, Math.max(1, Number(document.getElementById('cfg-data-retain-days').value || 7)));
+        const backupRetain = Math.min(365, Math.max(3, Number(document.getElementById('cfg-retain').value || 7)));
+        const retryMax = Math.min(20, Math.max(1, Number(document.getElementById('cfg-retry-max').value || 5)));
+
         const payload = {
           site_name: document.getElementById('cfg-site-name').value.trim(),
           wechat_appid: document.getElementById('cfg-appid').value.trim(),
           wechat_mock_mode: document.getElementById('cfg-mock-mode').value === 'true',
           draft_retry_enabled: document.getElementById('cfg-draft-retry').value === 'true',
-          draft_retry_max_attempts: Number(document.getElementById('cfg-retry-max').value || 5),
-          auto_backup_enabled: document.getElementById('cfg-auto-backup').value === 'true',
-          backup_retain_count: Number(document.getElementById('cfg-retain').value || 7)
+          draft_retry_max_attempts: retryMax,
+          data_retain_days: retainDays,
+          backup_retain_count: backupRetain
         };
         const secret = document.getElementById('cfg-secret').value.trim();
-        if (secret) payload.app_secret = secret;
+        if (secret) payload.wechat_appsecret = secret;
+
         await api('/api/config', { method: 'PUT', body: JSON.stringify(payload) });
         toast('系统配置已保存', 'success');
-        await loadSettingsAndBackups();
+        await Promise.all([refreshHealthBar(), refreshLogAlertDot(), loadSettingsAndBackups()]);
       } catch (e) {
-        toast('保存配置失败: ' + e.message, 'error');
+        if (e && e.isAuth) return;
+        toast('保存配置失败：' + e.message, 'error');
+      } finally {
+        btn.disabled = false;
+        btn.textContent = '保存配置';
+      }
+    }
+
+    async function runCleanupNow() {
+      const btn = document.getElementById('btn-cleanup-now');
+      btn.disabled = true;
+      btn.textContent = '清理中...';
+      try {
+        const [pushedRes, oldRes] = await Promise.all([
+          api('/api/cleanup/pushed-media', { method: 'POST' }),
+          api('/api/cleanup/run', { method: 'POST' })
+        ]);
+        const freed = Number(pushedRes.freed_bytes || 0) + Number(oldRes.freed_bytes || 0);
+        const removedFiles = Number(pushedRes.removed_files || 0);
+        const removedDirs = (oldRes.removed_incoming?.length || 0) + (oldRes.removed_articles?.length || 0);
+        toast(`清理完成：已清图片 ${removedFiles} 个，过期目录 ${removedDirs} 个，释放 ${formatBytes(freed)}`, 'success');
+        await Promise.all([refreshHealthBar(), refreshLogAlertDot(), loadSettingsAndBackups()]);
+      } catch (e) {
+        if (e && e.isAuth) return;
+        toast('空间清理失败：' + e.message, 'error');
+      } finally {
+        btn.disabled = false;
+        btn.textContent = '立即清理过期/已推图片';
       }
     }
 
     async function runBackupNow() {
+      const btn = document.getElementById('btn-backup-now');
+      btn.disabled = true;
+      btn.textContent = '备份中...';
       try {
         const res = await api('/api/backups/run', { method: 'POST' });
-        toast(`备份成功：${res.filename} (${(Number(res.size_bytes || 0) / 1024).toFixed(1)} KB)`, 'success');
-        await refreshHealthBar();
-        if (currentTab === 'settings') await loadSettingsAndBackups();
+        toast(`备份成功：${res.filename} (${formatBytes(res.size_bytes)})`, 'success');
+        await Promise.all([refreshHealthBar(), refreshLogAlertDot(), loadSettingsAndBackups()]);
       } catch (e) {
-        toast('备份失败: ' + e.message, 'error');
+        if (e && e.isAuth) return;
+        toast('备份失败：' + e.message, 'error');
+      } finally {
+        btn.disabled = false;
+        btn.textContent = '一键备份数据库';
       }
     }
 
-    // Boot
-    (async function init() {
-      await refreshHealthBar();
+    function openLogsDrawer() {
+      document.getElementById('logs-drawer-backdrop').classList.add('open');
+      document.getElementById('logs-drawer').classList.add('open');
+      loadLogs();
+    }
+
+    function closeLogsDrawer() {
+      document.getElementById('logs-drawer-backdrop').classList.remove('open');
+      document.getElementById('logs-drawer').classList.remove('open');
+    }
+
+    async function loadLogs() {
+      const body = document.getElementById('logs-drawer-body');
+      const stage = document.getElementById('log-stage').value;
+      const status = document.getElementById('log-status').value;
+      const params = new URLSearchParams();
+      if (stage) params.set('stage', stage);
+      if (status) params.set('status', status);
+      params.set('limit', '120');
+
       try {
-        const cfg = await api('/api/config');
-        if (cfg.site_name) document.getElementById('site-title').textContent = cfg.site_name;
-      } catch {}
-      await loadNews();
+        const data = await api('/api/logs?' + params.toString());
+        const items = data.items || [];
+        document.getElementById('drawer-logs-count').textContent = `${data.count ?? items.length} 条`;
+
+        if (!items.length) {
+          body.innerHTML = '<div class="empty">暂无符合条件的任务日志</div>';
+          return;
+        }
+
+        body.innerHTML = items.map(l => {
+          const lvl = String(l.level || 'INFO').toUpperCase();
+          const cls = (l.status === 'failed' || lvl === 'ERROR')
+            ? 'log-error'
+            : (l.status === 'warning' || lvl === 'WARN')
+              ? 'log-warn'
+              : '';
+          const stageLabel = STAGE_LABELS[l.stage] || l.stage || '-';
+          return `
+            <div class="log-item ${cls}">
+              <div class="log-item-head">
+                <div class="log-item-meta">
+                  <span class="badge badge-gray">${esc(stageLabel)}</span>
+                  ${statusBadge(l.status)}
+                  ${l.date ? `<span class="mono muted">${esc(l.date)}</span>` : ''}
+                </div>
+                <span class="mono muted">${esc(l.created_at || '')}</span>
+              </div>
+              <div class="log-item-msg">${esc(l.message || '')}</div>
+            </div>
+          `;
+        }).join('');
+      } catch (e) {
+        if (e && e.isAuth) return;
+        body.innerHTML = `<div class="empty" style="color:var(--danger);">加载日志失败：${esc(e.message)}</div>`;
+      }
+    }
+
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') {
+        closeArticleModal();
+        closePublishModal();
+        closeLogsDrawer();
+        closeMobileSidebar();
+      }
+    });
+
+    (async function boot() {
+      showBoot();
+      try {
+        const me = await api('/api/auth/me', { skipAuthRedirect: true });
+        authState = {
+          authenticated: Boolean(me.authenticated),
+          auth_enabled: me.auth_enabled !== false,
+          username: me.username || 'admin',
+          wechat_configured: Boolean(me.wechat_configured)
+        };
+        if (!authState.authenticated) {
+          showLoginScreen('');
+          return;
+        }
+        if (!authState.wechat_configured) {
+          showOnboardingScreen();
+          return;
+        }
+        await enterMainApp();
+      } catch (e) {
+        showLoginScreen('无法连接认证接口：' + (e.message || '请稍后重试'));
+      }
     })();
   </script>
 </body>

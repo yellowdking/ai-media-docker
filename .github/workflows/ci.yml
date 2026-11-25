@@ -35,7 +35,7 @@ jobs:
         run: docker build -t ai-media-server:ci .
 
   release:
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     needs: test-and-build
     runs-on: ubuntu-latest
     permissions:
@@ -43,11 +43,20 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-      - name: Create GitHub Release
+      - name: Auto tag & create GitHub Release from VERSION
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release create "${GITHUB_REF_NAME}" \
-            --title "AI Media Docker ${GITHUB_REF_NAME}" \
+          VER=$(tr -d '[:space:]' < VERSION)
+          TAG="v${VER}"
+          if gh release view "${TAG}" >/dev/null 2>&1; then
+            echo "Release ${TAG} already exists, skipping."
+            exit 0
+          fi
+          gh release create "${TAG}" \
+            --target "${GITHUB_SHA}" \
+            --title "AI Media Docker ${TAG}" \
             --generate-notes

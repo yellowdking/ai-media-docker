@@ -534,7 +534,7 @@ async def build_translated_article_bundle(
     category: str = "AI新闻",
     summary: str = "",
     published_at: str = "",
-    author: str = "咨询管理后台系统",
+    author: str = "资讯后台管理系统",
 ) -> dict[str, Any]:
     """Translate a news item + source paragraphs into a complete WeChat-ready Chinese article bundle."""
     orig_title = re.sub(r"\s+", " ", (title or "")).strip() or f"{article_date} 资讯编译"
@@ -542,7 +542,7 @@ async def build_translated_article_bundle(
     clean_url = (url or "").strip()
     clean_source = (source_name or "").strip() or "行业资讯"
     clean_category = (category or "").strip() or "AI新闻"
-    clean_author = (author or "").strip() or "咨询管理后台系统"
+    clean_author = (author or "").strip() or "资讯后台管理系统"
 
     modes: list[str] = []
 

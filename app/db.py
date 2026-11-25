@@ -34,7 +34,7 @@ DEFAULT_SETTINGS: dict[str, str] = {
     "data_retain_days": "7",
     "draft_retry_enabled": "true",
     "draft_retry_max_attempts": "5",
-    "site_name": "咨询管理后台系统",
+    "site_name": "资讯后台管理系统",
 }
 
 
@@ -132,7 +132,7 @@ CREATE TABLE IF NOT EXISTS articles (
     subtitle TEXT DEFAULT '',
     category TEXT DEFAULT 'AI新闻',
     template TEXT DEFAULT 'news',
-    author TEXT DEFAULT '咨询管理后台系统',
+    author TEXT DEFAULT '资讯后台管理系统',
     publish_mode TEXT DEFAULT 'draft_only',
     review_passed INTEGER DEFAULT 0,
     needs_manual_review INTEGER DEFAULT 0,
@@ -268,13 +268,13 @@ def init_db() -> None:
             "UPDATE settings SET value = 'draft_only', updated_at = ? WHERE key = 'wechat_publish_mode'",
             (ts,),
         )
-        # Migrate legacy default site names to the unified v1.2.5 brand name
+        # Migrate legacy default site names to the unified v1.2.6 brand name
         conn.execute(
             """
             UPDATE settings
-            SET value = '咨询管理后台系统', updated_at = ?
+            SET value = '资讯后台管理系统', updated_at = ?
             WHERE key = 'site_name'
-              AND value IN ('AI Media 自媒体管理后台', 'AI Media · 公众号草稿中心', 'AI Media')
+              AND value IN ('AI Media 自媒体管理后台', 'AI Media · 公众号草稿中心', 'AI Media', '咨询管理后台系统')
             """,
             (ts,),
         )

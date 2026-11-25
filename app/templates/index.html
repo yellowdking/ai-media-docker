@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>AI Media · 公众号草稿中心</title>
+  <title>咨询管理后台系统</title>
   <style>
     :root {
       --bg: #f8fafc;
@@ -590,6 +590,37 @@
       gap: 8px;
       flex-wrap: wrap;
     }
+    .toolbar-check {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 13px;
+      color: var(--text-secondary);
+      cursor: pointer;
+      user-select: none;
+      padding: 4px 8px;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      background: var(--bg);
+    }
+    .toolbar-check:hover { background: var(--bg-subtle); }
+    .toolbar-check input[type="checkbox"],
+    .row-check {
+      width: 15px;
+      height: 15px;
+      accent-color: var(--primary);
+      cursor: pointer;
+      vertical-align: middle;
+    }
+    .card-subhint {
+      font-size: 12px;
+      color: var(--muted);
+      margin: -6px 0 12px;
+    }
+    .col-check {
+      width: 38px;
+      text-align: center;
+    }
     .toolbar input[type="text"],
     .toolbar select {
       width: auto;
@@ -975,8 +1006,8 @@
             <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"></path>
           </svg>
         </div>
-        <h1>AI Media · 公众号草稿中心</h1>
-        <p>严格仅草稿箱模式 (draft_only) · 管理后台</p>
+        <h1>咨询管理后台系统</h1>
+        <p>请使用管理员账号登录系统</p>
       </div>
 
       <div id="login-error" class="alert alert-error hidden" role="alert"></div>
@@ -1013,18 +1044,18 @@
       </form>
 
       <div class="login-foot">
-        仅同步至微信公众号草稿箱，绝不自动群发
+        安全会话认证 · 仅同步至草稿箱，不自动群发
       </div>
     </div>
   </section>
 
   <!-- 2. First-Login WeChat Onboarding Setup -->
-  <section id="onboarding-screen" class="onboarding-screen hidden" aria-label="首次配置微信公众号">
+  <section id="onboarding-screen" class="onboarding-screen hidden" aria-label="首次配置推送凭证">
     <div class="onboarding-card">
       <div class="onboarding-head">
         <span class="badge badge-blue">首次登录引导</span>
-        <h2>首次配置微信公众号</h2>
-        <p>填写公众号开发者凭证后即可推送文章至草稿箱。保存后此引导将自动隐藏，后续可在「系统配置」修改。</p>
+        <h2>首次配置推送凭证</h2>
+        <p>填写微信开发者凭证后即可推送文章至草稿箱。保存后此引导将自动隐藏，后续可在「系统配置」修改。</p>
       </div>
 
       <div class="alert alert-warn">
@@ -1035,11 +1066,11 @@
 
       <form id="onboarding-form">
         <div class="field">
-          <label for="ob-appid">微信公众号 AppID</label>
-          <input type="text" id="ob-appid" placeholder="请输入公众号 AppID（以 wx 开头）" autocomplete="off" />
+          <label for="ob-appid">微信 AppID</label>
+          <input type="text" id="ob-appid" placeholder="请输入微信 AppID（以 wx 开头）" autocomplete="off" />
         </div>
         <div class="field">
-          <label for="ob-secret">微信公众号 AppSecret</label>
+          <label for="ob-secret">微信 AppSecret</label>
           <div class="pwd-wrap">
             <input type="password" id="ob-secret" placeholder="请输入 32 位 AppSecret" autocomplete="new-password" />
             <button type="button" class="pwd-toggle" onclick="toggleInputPassword('ob-secret', this)" aria-label="显示或隐藏 AppSecret">
@@ -1084,8 +1115,8 @@
           </svg>
         </div>
         <div style="min-width:0;">
-          <h1 id="site-title">AI Media</h1>
-          <p>公众号草稿中心</p>
+          <h1 id="site-title">咨询管理后台系统</h1>
+          <p>内容与发布管理</p>
         </div>
       </div>
 
@@ -1238,13 +1269,24 @@
               <div class="card-title">
                 <span>文章管理</span>
                 <span class="badge badge-gray num" id="articles-count-badge">0 篇</span>
+                <span class="badge badge-blue">仅草稿箱 (draft_only)</span>
               </div>
-              <span class="badge badge-blue">仅草稿箱 (draft_only)</span>
+              <div class="toolbar">
+                <label class="toolbar-check">
+                  <input type="checkbox" id="articles-select-all" onchange="toggleSelectAllArticles(this.checked)" />
+                  <span>全选</span>
+                </label>
+                <button type="button" class="btn btn-sm btn-danger-ghost" id="btn-articles-batch-delete" onclick="batchDeleteArticles()" disabled>批量清理</button>
+                <button type="button" class="btn btn-sm btn-danger-ghost" id="btn-articles-clear-all" onclick="clearAllArticles()" disabled>清空文章与缓存</button>
+              </div>
             </div>
             <div class="table-wrap">
               <table>
                 <thead>
                   <tr>
+                    <th class="col-check">
+                      <input type="checkbox" class="row-check" id="articles-thead-select-all" aria-label="全选文章" onchange="toggleSelectAllArticles(this.checked)" />
+                    </th>
                     <th>日期</th>
                     <th>标题 / 副标题</th>
                     <th>分类</th>
@@ -1298,12 +1340,23 @@
                 <span>草稿与人工发布记录</span>
                 <span class="badge badge-gray num" id="publish-count-badge">0 条</span>
               </div>
-              <span class="muted" style="font-size:12px;">系统仅推送至草稿箱，请在公众号后台审核后人工发布并回填确认</span>
+              <div class="toolbar">
+                <label class="toolbar-check">
+                  <input type="checkbox" id="publish-select-all" onchange="toggleSelectAllPublish(this.checked)" />
+                  <span>全选</span>
+                </label>
+                <button type="button" class="btn btn-sm btn-danger-ghost" id="btn-publish-batch-delete" onclick="batchDeletePublishRecords()" disabled>批量清理</button>
+                <button type="button" class="btn btn-sm btn-danger-ghost" id="btn-publish-clear-all" onclick="clearAllPublishRecords()" disabled>清空记录与缓存</button>
+              </div>
             </div>
+            <div class="card-subhint">系统仅推送至草稿箱，请在微信公众平台后台审核后人工发布并回填确认；清理发布记录将同步删除文章管理对应记录与本地图片缓存。</div>
             <div class="table-wrap">
               <table>
                 <thead>
                   <tr>
+                    <th class="col-check">
+                      <input type="checkbox" class="row-check" id="publish-thead-select-all" aria-label="全选发布记录" onchange="toggleSelectAllPublish(this.checked)" />
+                    </th>
                     <th>日期</th>
                     <th>文章标题</th>
                     <th>Media ID</th>
@@ -1323,7 +1376,7 @@
           <div class="card">
             <div class="card-header">
               <div class="card-title">
-                <span>微信公众号与推送配置</span>
+                <span>微信推送配置</span>
                 <span class="badge badge-gray" id="cfg-wx-status-badge">检测中</span>
               </div>
               <span class="badge badge-blue">发布锁: draft_only</span>
@@ -1338,12 +1391,12 @@
 
             <div class="form-grid">
               <div class="field">
-                <label for="cfg-appid">微信公众号 AppID</label>
-                <input type="text" id="cfg-appid" placeholder="请输入公众号 AppID（以 wx 开头）" autocomplete="off" />
+                <label for="cfg-appid">微信 AppID</label>
+                <input type="text" id="cfg-appid" placeholder="请输入微信 AppID（以 wx 开头）" autocomplete="off" />
               </div>
               <div class="field">
                 <label for="cfg-secret">
-                  <span>微信公众号 AppSecret</span>
+                  <span>微信 AppSecret</span>
                   <span class="mono" id="cfg-secret-status" style="color:var(--primary);font-weight:500;"></span>
                 </label>
                 <div class="pwd-wrap">
@@ -1360,7 +1413,7 @@
               <div class="field">
                 <label for="cfg-mock-mode">草稿推送模式</label>
                 <select id="cfg-mock-mode">
-                  <option value="false">真实微信公众号草稿箱模式 (draft_only)</option>
+                  <option value="false">真实微信草稿箱模式 (draft_only)</option>
                   <option value="true">模拟草稿模式 (Dry-Run / Mock)</option>
                 </select>
               </div>
@@ -1387,7 +1440,7 @@
               </div>
               <div class="field">
                 <label for="cfg-site-name">站点标题</label>
-                <input type="text" id="cfg-site-name" placeholder="AI Media · 公众号草稿中心" />
+                <input type="text" id="cfg-site-name" placeholder="咨询管理后台系统" />
               </div>
             </div>
 
@@ -1492,7 +1545,8 @@
         <option value="win_sync">Windows 同步</option>
         <option value="win_analyze">Windows 复盘</option>
         <option value="ingest">Debian 入库</option>
-        <option value="wechat_draft">公众号草稿</option>
+        <option value="news_publish">资讯翻译推送</option>
+        <option value="wechat_draft">微信草稿推送</option>
         <option value="draft_retry">草稿自动重试</option>
         <option value="publish_record">人工发布确认</option>
         <option value="cleanup">空间清理</option>
@@ -1521,13 +1575,16 @@
       settings: '4. 系统配置'
     };
 
+    const DEFAULT_SITE_NAME = '咨询管理后台系统';
+
     const STAGE_LABELS = {
       win_collect: 'Windows 采集',
       win_produce: 'Windows 生产',
       win_sync: 'Windows 同步',
       win_analyze: 'Windows 复盘',
       ingest: 'Debian 入库',
-      wechat_draft: '公众号草稿',
+      news_publish: '资讯翻译推送',
+      wechat_draft: '微信草稿推送',
       draft_retry: '草稿重试',
       publish_record: '人工发布',
       cleanup: '空间清理',
@@ -1709,6 +1766,31 @@
       setTimeout(() => document.getElementById('ob-appid').focus(), 40);
     }
 
+    function applySiteBranding(siteName) {
+      const title = String(siteName || '').trim() || DEFAULT_SITE_NAME;
+      const titleEl = document.getElementById('site-title');
+      if (titleEl) titleEl.textContent = title;
+      document.title = title;
+    }
+
+    function isLogsDrawerOpen() {
+      const drawer = document.getElementById('logs-drawer');
+      return Boolean(drawer && drawer.classList.contains('open'));
+    }
+
+    async function refreshWorkspaceAfterChange({ includeNews = false } = {}) {
+      const tasks = [
+        refreshHealthBar(),
+        refreshLogAlertDot(),
+        loadArticles(),
+        loadPublishRecords(),
+        loadConfig()
+      ];
+      if (includeNews) tasks.push(loadNews());
+      if (isLogsDrawerOpen()) tasks.push(loadLogs());
+      await Promise.allSettled(tasks);
+    }
+
     async function enterMainApp() {
       document.getElementById('boot-screen').classList.add('hidden');
       document.getElementById('login-screen').classList.add('hidden');
@@ -1717,12 +1799,13 @@
       document.getElementById('sidebar-user-info').textContent = `账号：${authState.username || 'admin'}`;
       try {
         const cfg = await api('/api/config');
-        if (cfg.site_name) document.getElementById('site-title').textContent = cfg.site_name;
+        applySiteBranding(cfg.site_name);
         if (typeof cfg.wechat_configured === 'boolean') {
           authState.wechat_configured = cfg.wechat_configured;
         }
       } catch (e) {
         if (e && e.isAuth) return;
+        applySiteBranding(DEFAULT_SITE_NAME);
       }
       await refreshCurrentTab();
     }
@@ -1789,7 +1872,7 @@
       const realMode = document.getElementById('ob-real-mode').checked;
 
       if (!appid || !secret) {
-        errEl.textContent = '请完整填写微信公众号 AppID 和 AppSecret（或点击左下角稍后填写）';
+        errEl.textContent = '请完整填写微信 AppID 和 AppSecret（或点击左下角稍后填写）';
         errEl.classList.remove('hidden');
         return;
       }
@@ -1809,7 +1892,7 @@
         });
         authState.wechat_configured = Boolean(cfg.wechat_configured ?? true);
         document.getElementById('ob-secret').value = '';
-        toast('微信公众号配置已保存，已进入管理后台', 'success');
+        toast('微信推送配置已保存，已进入管理后台', 'success');
         await enterMainApp();
       } catch (e) {
         if (e && e.isAuth) return;
@@ -1969,6 +2052,7 @@
             <td>${statusBadge(n.status)}</td>
             <td class="nowrap">
               <div class="row-actions">
+                <button type="button" class="btn btn-sm btn-primary" data-id="${esc(n.id)}" title="自动翻译为中文并推送至微信草稿箱" onclick="publishNewsItem(this.dataset.id, this)">一键翻译推送</button>
                 <button type="button" class="btn btn-sm" data-id="${esc(n.id)}" data-next="${esc(toggleStatus)}" onclick="setNewsStatus(this.dataset.id, this.dataset.next)">${toggleLabel}</button>
                 <button type="button" class="btn btn-sm btn-danger-ghost" data-id="${esc(n.id)}" onclick="deleteNewsItem(this.dataset.id)">删除</button>
               </div>
@@ -1976,6 +2060,37 @@
           </tr>
         `;
       }).join('');
+    }
+
+    async function publishNewsItem(id, btnEl) {
+      if (!id) return;
+      if (btnEl) {
+        if (btnEl.disabled) return;
+        btnEl.disabled = true;
+        btnEl.textContent = '翻译推送中...';
+      }
+      try {
+        const res = await api(`/api/news/${encodeURIComponent(id)}/publish`, {
+          method: 'POST'
+        });
+        if (res.ok) {
+          const titleText = res.title ? `：《${res.title}》` : '';
+          toast(`已翻译并推送草稿${titleText}`, 'success');
+        } else {
+          const errMsg = res.message || res.detail || '翻译推送失败';
+          const titlePrefix = (res.title && !String(errMsg).includes(res.title)) ? `《${res.title}》 ` : '';
+          toast(`${titlePrefix}${errMsg}`, 'error');
+        }
+        await refreshWorkspaceAfterChange({ includeNews: true });
+      } catch (e) {
+        if (e && e.isAuth) return;
+        toast('一键翻译推送失败：' + (e.message || '请求异常'), 'error');
+      } finally {
+        if (btnEl && btnEl.isConnected) {
+          btnEl.disabled = false;
+          btnEl.textContent = '一键翻译推送';
+        }
+      }
     }
 
     async function setNewsStatus(id, status) {
@@ -2005,13 +2120,55 @@
     }
 
     // ---------- Tab 2: 文章管理 ----------
+    function getSelectedArticleDates() {
+      return Array.from(document.querySelectorAll('.article-row-check:checked'))
+        .map(el => el.value)
+        .filter(Boolean);
+    }
+
+    function syncArticleSelectionUI() {
+      const allChecks = Array.from(document.querySelectorAll('.article-row-check'));
+      const checkedCount = allChecks.filter(el => el.checked).length;
+      const total = allChecks.length;
+      const allChecked = total > 0 && checkedCount === total;
+      const indeterminate = checkedCount > 0 && checkedCount < total;
+
+      for (const id of ['articles-select-all', 'articles-thead-select-all']) {
+        const box = document.getElementById(id);
+        if (box) {
+          box.checked = allChecked;
+          box.indeterminate = indeterminate;
+          box.disabled = total === 0;
+        }
+      }
+
+      const batchBtn = document.getElementById('btn-articles-batch-delete');
+      if (batchBtn) {
+        batchBtn.disabled = checkedCount === 0;
+        batchBtn.textContent = checkedCount > 0 ? `批量清理 (${checkedCount})` : '批量清理';
+      }
+
+      const clearAllBtn = document.getElementById('btn-articles-clear-all');
+      if (clearAllBtn) {
+        clearAllBtn.disabled = total === 0;
+      }
+    }
+
+    function toggleSelectAllArticles(checked) {
+      document.querySelectorAll('.article-row-check').forEach(el => {
+        el.checked = Boolean(checked);
+      });
+      syncArticleSelectionUI();
+    }
+
     async function loadArticles() {
       const data = await api('/api/articles');
       const items = data.items || [];
       document.getElementById('articles-count-badge').textContent = `${data.count ?? items.length} 篇`;
       const tb = document.getElementById('articles-tbody');
       if (!items.length) {
-        tb.innerHTML = '<tr><td colspan="7" class="empty">暂无已入库文章</td></tr>';
+        tb.innerHTML = '<tr><td colspan="8" class="empty">暂无已入库文章</td></tr>';
+        syncArticleSelectionUI();
         return;
       }
 
@@ -2019,9 +2176,12 @@
         const coverCleared = (a.cover_path === '' || a.has_cover === false);
         const canPush = (a.status === 'draft_failed' || a.status === 'ready');
         const pushBtnLabel = a.status === 'draft_failed' ? '重试推草稿' : '推送草稿';
-        const pushBtnTitle = a.status === 'ready' ? '推送文章到公众号草稿箱' : '重新推送失败的文章到公众号草稿箱';
+        const pushBtnTitle = a.status === 'ready' ? '推送文章到微信草稿箱' : '重新推送失败的文章到微信草稿箱';
         return `
           <tr>
+            <td class="col-check">
+              <input type="checkbox" class="row-check article-row-check" value="${esc(a.date)}" aria-label="选择文章 ${esc(a.date)}" onchange="syncArticleSelectionUI()" />
+            </td>
             <td class="nowrap num"><strong>${esc(a.date)}</strong></td>
             <td class="title-cell">
               <strong>${esc(a.title)}</strong>
@@ -2052,11 +2212,100 @@
                 ${canPush
                   ? `<button type="button" class="btn btn-sm btn-primary" data-date="${esc(a.date)}" title="${esc(pushBtnTitle)}" onclick="pushDraftFromArticles(this.dataset.date, this)">${pushBtnLabel}</button>`
                   : ''}
+                <button type="button" class="btn btn-sm btn-danger-ghost" data-date="${esc(a.date)}" data-title="${esc(a.title || a.date)}" onclick="deleteArticleItem(this.dataset.date, this.dataset.title, this)">删除</button>
               </div>
             </td>
           </tr>
         `;
       }).join('');
+      syncArticleSelectionUI();
+    }
+
+    async function deleteArticleItem(dateStr, title, btnEl) {
+      if (!dateStr) return;
+      const ok = confirm(
+        `确认永久删除文章「${title || dateStr}」（${dateStr}）吗？\n\n此操作将永久删除该文章记录、本地图片与存储缓存，以及关联的发布/草稿记录，且无法恢复。`
+      );
+      if (!ok) return;
+      if (btnEl) {
+        btnEl.disabled = true;
+        btnEl.textContent = '删除中...';
+      }
+      try {
+        const res = await api(`/api/articles/${encodeURIComponent(dateStr)}`, { method: 'DELETE' });
+        const freed = res.freed_human || formatBytes(res.freed_bytes || 0);
+        const files = Number(res.removed_files || 0);
+        toast(`已删除文章，清理文件 ${files} 个，释放空间 ${freed}`, 'success');
+        if (modalArticle && modalArticle.date === dateStr) closeArticleModal();
+        await refreshWorkspaceAfterChange();
+      } catch (e) {
+        if (e && e.isAuth) return;
+        toast('删除文章失败：' + e.message, 'error');
+        if (btnEl && btnEl.isConnected) {
+          btnEl.disabled = false;
+          btnEl.textContent = '删除';
+        }
+      }
+    }
+
+    async function batchDeleteArticles() {
+      const dates = getSelectedArticleDates();
+      if (!dates.length) return;
+      const ok = confirm(
+        `确认批量清理选中的 ${dates.length} 篇文章吗？\n\n此操作将永久删除所选文章记录、本地图片与存储缓存，以及关联的发布/草稿记录，且无法恢复。`
+      );
+      if (!ok) return;
+      const btn = document.getElementById('btn-articles-batch-delete');
+      if (btn) {
+        btn.disabled = true;
+        btn.textContent = '清理中...';
+      }
+      try {
+        const res = await api('/api/articles/batch-delete', {
+          method: 'POST',
+          body: JSON.stringify({ dates })
+        });
+        const count = Number(res.deleted_count ?? dates.length);
+        const freed = res.freed_human || formatBytes(res.freed_bytes || 0);
+        const files = Number(res.removed_files || 0);
+        toast(`已批量清理 ${count} 篇文章，清理文件 ${files} 个，释放空间 ${freed}`, 'success');
+        if (modalArticle && dates.includes(modalArticle.date)) closeArticleModal();
+        await refreshWorkspaceAfterChange();
+      } catch (e) {
+        if (e && e.isAuth) return;
+        toast('批量清理文章失败：' + e.message, 'error');
+        syncArticleSelectionUI();
+      }
+    }
+
+    async function clearAllArticles() {
+      const ok = confirm(
+        '确认清空全部文章与缓存吗？\n\n此操作将永久删除所有文章记录、全部本地图片与存储缓存，以及关联的发布/草稿记录，且无法恢复！'
+      );
+      if (!ok) return;
+      const btn = document.getElementById('btn-articles-clear-all');
+      if (btn) {
+        btn.disabled = true;
+        btn.textContent = '清空中...';
+      }
+      try {
+        const res = await api('/api/articles/batch-delete', {
+          method: 'POST',
+          body: JSON.stringify({ all: true })
+        });
+        const count = Number(res.deleted_count ?? 0);
+        const freed = res.freed_human || formatBytes(res.freed_bytes || 0);
+        const files = Number(res.removed_files || 0);
+        toast(`已清空 ${count} 篇文章，清理文件 ${files} 个，释放空间 ${freed}`, 'success');
+        closeArticleModal();
+        await refreshWorkspaceAfterChange();
+      } catch (e) {
+        if (e && e.isAuth) return;
+        toast('清空文章失败：' + e.message, 'error');
+      } finally {
+        if (btn) btn.textContent = '清空文章与缓存';
+        syncArticleSelectionUI();
+      }
     }
 
     async function pushDraftFromArticles(dateStr, btnEl) {
@@ -2156,7 +2405,7 @@
           ${categoryBadge(a.category)}
           ${statusBadge(a.status)}
           ${coverCleared ? '<span class="badge badge-outline">已清图（推送后自动释放空间）</span>' : ''}
-          <span>作者：${esc(a.author || 'AI Media')}</span>
+          <span>作者：${esc(a.author || DEFAULT_SITE_NAME)}</span>
           <span>字数：${Number(a.word_count || 0)}</span>
           <span>来源：${sources.length}</span>
         </div>
@@ -2182,6 +2431,51 @@
     }
 
     // ---------- Tab 3: 发布记录 (+ 条件显示的待重试/失败队列) ----------
+    function getSelectedPublishIds() {
+      return Array.from(document.querySelectorAll('.publish-row-check:checked'))
+        .map(el => Number(el.value))
+        .filter(id => Number.isFinite(id) && id > 0);
+    }
+
+    function syncPublishSelectionUI() {
+      const allChecks = Array.from(document.querySelectorAll('.publish-row-check'));
+      const checkedCount = allChecks.filter(el => el.checked).length;
+      const total = allChecks.length;
+      const allChecked = total > 0 && checkedCount === total;
+      const indeterminate = checkedCount > 0 && checkedCount < total;
+
+      for (const id of ['publish-select-all', 'publish-thead-select-all']) {
+        const box = document.getElementById(id);
+        if (box) {
+          box.checked = allChecked;
+          box.indeterminate = indeterminate;
+          box.disabled = total === 0;
+        }
+      }
+
+      const batchBtn = document.getElementById('btn-publish-batch-delete');
+      if (batchBtn) {
+        batchBtn.disabled = checkedCount === 0;
+        batchBtn.textContent = checkedCount > 0 ? `批量清理 (${checkedCount})` : '批量清理';
+      }
+
+      const clearAllBtn = document.getElementById('btn-publish-clear-all');
+      if (clearAllBtn) {
+        clearAllBtn.disabled = total === 0;
+      }
+    }
+
+    function toggleSelectAllPublish(checked) {
+      document.querySelectorAll('.publish-row-check').forEach(el => {
+        el.checked = Boolean(checked);
+      });
+      syncPublishSelectionUI();
+    }
+
+    async function loadPublishRecords() {
+      return loadPublishTab();
+    }
+
     async function loadPublishTab() {
       const [pubData, draftData] = await Promise.all([
         api('/api/publish-records'),
@@ -2225,12 +2519,16 @@
       document.getElementById('publish-count-badge').textContent = `${pubData.count ?? records.length} 条`;
       const tb = document.getElementById('publish-tbody');
       if (!records.length) {
-        tb.innerHTML = '<tr><td colspan="6" class="empty">暂无草稿或发布记录（文章推送草稿箱后自动生成）</td></tr>';
+        tb.innerHTML = '<tr><td colspan="7" class="empty">暂无草稿或发布记录（文章推送草稿箱后自动生成）</td></tr>';
+        syncPublishSelectionUI();
         return;
       }
 
       tb.innerHTML = records.map(r => `
         <tr>
+          <td class="col-check">
+            <input type="checkbox" class="row-check publish-row-check" value="${Number(r.id)}" aria-label="选择发布记录 #${Number(r.id)}" onchange="syncPublishSelectionUI()" />
+          </td>
           <td class="nowrap num"><strong>${esc(r.article_date)}</strong></td>
           <td><strong>${esc(r.title)}</strong></td>
           <td class="mono">
@@ -2246,12 +2544,106 @@
             <div class="muted" style="font-size:12px;">${esc(r.notes || '-')}</div>
           </td>
           <td class="nowrap">
-            ${r.status !== 'manual_published'
-              ? `<button type="button" class="btn btn-sm btn-success" data-id="${Number(r.id)}" data-title="${esc(r.title)}" data-notes="${esc(r.notes || '')}" onclick="openPublishModal(Number(this.dataset.id), this.dataset.title, this.dataset.notes)">标记已人工发布</button>`
-              : '<span class="badge badge-green">已完成</span>'}
+            <div class="row-actions">
+              ${r.status !== 'manual_published'
+                ? `<button type="button" class="btn btn-sm btn-success" data-id="${Number(r.id)}" data-title="${esc(r.title)}" data-notes="${esc(r.notes || '')}" onclick="openPublishModal(Number(this.dataset.id), this.dataset.title, this.dataset.notes)">标记已人工发布</button>`
+                : '<span class="badge badge-green">已完成</span>'}
+              <button type="button" class="btn btn-sm btn-danger-ghost" data-id="${Number(r.id)}" data-date="${esc(r.article_date || '')}" data-title="${esc(r.title || '')}" onclick="deletePublishRecordItem(Number(this.dataset.id), this.dataset.date, this.dataset.title, this)">删除</button>
+            </div>
           </td>
         </tr>
       `).join('');
+      syncPublishSelectionUI();
+    }
+
+    async function deletePublishRecordItem(id, articleDate, title, btnEl) {
+      if (!id) return;
+      const ok = confirm(
+        `确认删除发布记录「${title || articleDate || ('#' + id)}」吗？\n\n注意：删除该发布记录将同步删除「文章管理」中对应的文章记录，以及本地图片与存储缓存，且无法恢复。`
+      );
+      if (!ok) return;
+      if (btnEl) {
+        btnEl.disabled = true;
+        btnEl.textContent = '删除中...';
+      }
+      try {
+        const res = await api(`/api/publish-records/${Number(id)}`, { method: 'DELETE' });
+        const delRec = Number(res.deleted_publish_records ?? 1);
+        const delArt = Number(res.deleted_articles ?? 0);
+        const freed = res.freed_human || formatBytes(res.freed_bytes || 0);
+        const files = Number(res.removed_files || 0);
+        toast(`已删除 ${delRec} 条发布记录、同步删除 ${delArt} 篇文章（清理文件 ${files} 个，释放 ${freed}）`, 'success');
+        if (modalArticle && articleDate && modalArticle.date === articleDate) closeArticleModal();
+        await refreshWorkspaceAfterChange();
+      } catch (e) {
+        if (e && e.isAuth) return;
+        toast('删除发布记录失败：' + e.message, 'error');
+        if (btnEl && btnEl.isConnected) {
+          btnEl.disabled = false;
+          btnEl.textContent = '删除';
+        }
+      }
+    }
+
+    async function batchDeletePublishRecords() {
+      const ids = getSelectedPublishIds();
+      if (!ids.length) return;
+      const ok = confirm(
+        `确认批量清理选中的 ${ids.length} 条发布记录吗？\n\n注意：删除发布记录将同步删除「文章管理」中对应的文章记录，以及本地图片与存储缓存，且无法恢复。`
+      );
+      if (!ok) return;
+      const btn = document.getElementById('btn-publish-batch-delete');
+      if (btn) {
+        btn.disabled = true;
+        btn.textContent = '清理中...';
+      }
+      try {
+        const res = await api('/api/publish-records/batch-delete', {
+          method: 'POST',
+          body: JSON.stringify({ ids })
+        });
+        const delRec = Number(res.deleted_records ?? ids.length);
+        const delArt = Number(res.deleted_articles ?? 0);
+        const freed = res.freed_human || formatBytes(res.freed_bytes || 0);
+        const files = Number(res.removed_files || 0);
+        toast(`已清理 ${delRec} 条发布记录、同步删除 ${delArt} 篇文章（清理文件 ${files} 个，释放 ${freed}）`, 'success');
+        await refreshWorkspaceAfterChange();
+      } catch (e) {
+        if (e && e.isAuth) return;
+        toast('批量清理发布记录失败：' + e.message, 'error');
+        syncPublishSelectionUI();
+      }
+    }
+
+    async function clearAllPublishRecords() {
+      const ok = confirm(
+        '确认清空全部发布记录与缓存吗？\n\n注意：清空发布记录将同步删除「文章管理」中所有对应的文章记录，以及全部本地图片与存储缓存，且无法恢复！'
+      );
+      if (!ok) return;
+      const btn = document.getElementById('btn-publish-clear-all');
+      if (btn) {
+        btn.disabled = true;
+        btn.textContent = '清空中...';
+      }
+      try {
+        const res = await api('/api/publish-records/batch-delete', {
+          method: 'POST',
+          body: JSON.stringify({ all: true })
+        });
+        const delRec = Number(res.deleted_records ?? 0);
+        const delArt = Number(res.deleted_articles ?? 0);
+        const freed = res.freed_human || formatBytes(res.freed_bytes || 0);
+        const files = Number(res.removed_files || 0);
+        toast(`已清空 ${delRec} 条发布记录、同步删除 ${delArt} 篇文章（清理文件 ${files} 个，释放 ${freed}）`, 'success');
+        closeArticleModal();
+        await refreshWorkspaceAfterChange();
+      } catch (e) {
+        if (e && e.isAuth) return;
+        toast('清空发布记录失败：' + e.message, 'error');
+      } finally {
+        if (btn) btn.textContent = '清空记录与缓存';
+        syncPublishSelectionUI();
+      }
     }
 
     async function retryDraftTask(taskId, btnEl) {
@@ -2329,6 +2721,10 @@
     });
 
     // ---------- Tab 4: 系统配置 ----------
+    async function loadConfig() {
+      return loadSettingsAndBackups();
+    }
+
     async function loadSettingsAndBackups() {
       const [cfg, bk] = await Promise.all([api('/api/config'), api('/api/backups')]);
 
@@ -2337,7 +2733,7 @@
       const configured = Boolean(cfg.wechat_configured ?? (cfg.wechat_appid && hasSecret));
       authState.wechat_configured = configured;
       const wxBadge = document.getElementById('cfg-wx-status-badge');
-      wxBadge.textContent = configured ? '公众号已配置' : '尚未配置公众号';
+      wxBadge.textContent = configured ? '微信推送已配置' : '尚未配置推送凭证';
       wxBadge.className = 'badge ' + (configured ? 'badge-green' : 'badge-yellow');
 
       document.getElementById('cfg-appid').value = cfg.wechat_appid || '';
@@ -2354,9 +2750,9 @@
       document.getElementById('cfg-retry-max').value = Number(cfg.draft_retry_max_attempts || 5);
       document.getElementById('cfg-data-retain-days').value = Number(cfg.data_retain_days || 7);
       document.getElementById('cfg-retain').value = Number(cfg.backup_retain_count || 7);
-      document.getElementById('cfg-site-name').value = cfg.site_name || '';
+      document.getElementById('cfg-site-name').value = cfg.site_name || DEFAULT_SITE_NAME;
 
-      if (cfg.site_name) document.getElementById('site-title').textContent = cfg.site_name;
+      applySiteBranding(cfg.site_name);
 
       const diskHuman = cfg.disk_usage_human || (cfg.disk_usage_bytes != null ? formatBytes(cfg.disk_usage_bytes) : '--');
       document.getElementById('rt-disk').textContent = diskHuman;

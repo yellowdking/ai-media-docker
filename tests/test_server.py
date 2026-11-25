@@ -55,11 +55,11 @@ class ServerCoreTestCase(unittest.TestCase):
         self.assertEqual(cfg["wechat_publish_mode"], "draft_only")
         self.assertEqual(cfg["data_retain_days"], "7")
         self.assertEqual(cfg["backup_retain_count"], "7")
-        self.assertEqual(cfg["site_name"], "咨询管理后台系统")
+        self.assertEqual(cfg["site_name"], "资讯后台管理系统")
 
     def test_legacy_site_name_migration_preserves_custom(self) -> None:
         ts = db.now_iso()
-        for legacy in ("AI Media 自媒体管理后台", "AI Media · 公众号草稿中心", "AI Media"):
+        for legacy in ("AI Media 自媒体管理后台", "AI Media · 公众号草稿中心", "AI Media", "咨询管理后台系统"):
             with db.get_conn() as conn:
                 conn.execute(
                     "UPDATE settings SET value = ?, updated_at = ? WHERE key = 'site_name'",
@@ -68,7 +68,7 @@ class ServerCoreTestCase(unittest.TestCase):
             db.init_db()
             with db.get_conn() as conn:
                 cfg = db.get_settings_dict(conn)
-            self.assertEqual(cfg["site_name"], "咨询管理后台系统")
+            self.assertEqual(cfg["site_name"], "资讯后台管理系统")
 
         # Custom user-specified site_name must NOT be overwritten
         with db.get_conn() as conn:

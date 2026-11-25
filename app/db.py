@@ -34,7 +34,7 @@ DEFAULT_SETTINGS: dict[str, str] = {
     "data_retain_days": "7",
     "draft_retry_enabled": "true",
     "draft_retry_max_attempts": "5",
-    "site_name": "AI Media 自媒体管理后台",
+    "site_name": "咨询管理后台系统",
 }
 
 
@@ -132,7 +132,7 @@ CREATE TABLE IF NOT EXISTS articles (
     subtitle TEXT DEFAULT '',
     category TEXT DEFAULT 'AI新闻',
     template TEXT DEFAULT 'news',
-    author TEXT DEFAULT 'AI Media',
+    author TEXT DEFAULT '咨询管理后台系统',
     publish_mode TEXT DEFAULT 'draft_only',
     review_passed INTEGER DEFAULT 0,
     needs_manual_review INTEGER DEFAULT 0,
@@ -266,6 +266,16 @@ def init_db() -> None:
         # Always enforce draft_only at DB level
         conn.execute(
             "UPDATE settings SET value = 'draft_only', updated_at = ? WHERE key = 'wechat_publish_mode'",
+            (ts,),
+        )
+        # Migrate legacy default site names to the unified v1.2.5 brand name
+        conn.execute(
+            """
+            UPDATE settings
+            SET value = '咨询管理后台系统', updated_at = ?
+            WHERE key = 'site_name'
+              AND value IN ('AI Media 自媒体管理后台', 'AI Media · 公众号草稿中心', 'AI Media')
+            """,
             (ts,),
         )
 
@@ -612,4 +622,118 @@ def cleanup_pushed_article_media(date_str: str) -> dict[str, Any]:
         "date": date_str,
         "removed_files": removed_files,
         "freed_bytes": freed_bytes,
+    }
+
+
+def delete_article_and_storage(
+    date_str: str,
+    *,
+    reason: str = "manual_delete",
+    record_log: bool = True,
+) -> dict[str, Any]:
+    """Delete an article's local directories (/data/articles/{date}, /data/incoming/{date}) and all linked DB rows."""
+    if not DATE_DIR_RE.match(date_str):
+        raise ValueError(f"Invalid date format: {date_str}")
+
+    dirs = ensure_data_dirs()
+    removed_files = 0
+    freed_bytes = 0
+    disk_existed = False
+
+    for target_dir in (dirs["articles"] / date_str, dirs["incoming"] / date_str):
+        if target_dir.exists():
+            disk_existed = True
+            if target_dir.is_dir():
+                for p in target_dir.rglob("*"):
+                    if p.is_file():
+                        removed_files += 1
+                        try:
+                            freed_bytes += p.stat().st_size
+                        except OSError:
+                            pass
+                shutil.rmtree(target_dir, ignore_errors=True)
+            else:
+                removed_files += 1
+                try:
+                    freed_bytes += target_dir.stat().st_size
+                except OSError:
+                    pass
+                try:
+                    target_dir.unlink()
+                except OSError:
+                    pass
+
+    with get_conn() as conn:
+        art_row = conn.execute("SELECT title FROM articles WHERE date = ?", (date_str,)).fetchone()
+        pub_row = conn.execute(
+            "SELECT title FROM publish_records WHERE article_date = ? ORDER BY id DESC LIMIT 1",
+            (date_str,),
+        ).fetchone()
+        title = str(
+            (art_row["title"] if art_row else "")
+            or (pub_row["title"] if pub_row else "")
+        )
+
+        deleted_images = conn.execute("DELETE FROM images WHERE date = ?", (date_str,)).rowcount or 0
+        deleted_draft_tasks = conn.execute(
+            "DELETE FROM draft_tasks WHERE article_date = ?", (date_str,)
+        ).rowcount or 0
+        deleted_publish_records = conn.execute(
+            "DELETE FROM publish_records WHERE article_date = ?", (date_str,)
+        ).rowcount or 0
+        deleted_metrics = conn.execute(
+            "DELETE FROM metrics WHERE article_date = ?", (date_str,)
+        ).rowcount or 0
+        deleted_articles = conn.execute("DELETE FROM articles WHERE date = ?", (date_str,)).rowcount or 0
+        conn.execute("DELETE FROM topics WHERE date = ? AND status = 'produced'", (date_str,))
+
+        existed = bool(
+            art_row
+            or disk_existed
+            or deleted_articles
+            or deleted_publish_records
+            or deleted_draft_tasks
+            or deleted_images
+            or deleted_metrics
+        )
+
+        freed_human = format_bytes(freed_bytes)
+        if record_log and existed:
+            label = f"《{title}》({date_str})" if title else date_str
+            add_task_log(
+                conn,
+                date_str=date_str,
+                stage="cleanup",
+                status="completed",
+                message=(
+                    f"清理文章与缓存 ({reason}): {label}，"
+                    f"删除文章 {deleted_articles} 条、发布记录 {deleted_publish_records} 条、"
+                    f"本地文件 {removed_files} 个，释放 {freed_human}"
+                ),
+                details={
+                    "reason": reason,
+                    "date": date_str,
+                    "title": title,
+                    "deleted_articles": deleted_articles,
+                    "deleted_publish_records": deleted_publish_records,
+                    "deleted_draft_tasks": deleted_draft_tasks,
+                    "deleted_images": deleted_images,
+                    "removed_files": removed_files,
+                    "freed_bytes": freed_bytes,
+                    "freed_human": freed_human,
+                },
+            )
+
+    return {
+        "ok": True,
+        "date": date_str,
+        "title": title,
+        "existed": existed,
+        "deleted_articles": deleted_articles,
+        "deleted_publish_records": deleted_publish_records,
+        "deleted_draft_tasks": deleted_draft_tasks,
+        "deleted_images": deleted_images,
+        "removed_files": removed_files,
+        "freed_bytes": freed_bytes,
+        "freed_human": freed_human,
     }

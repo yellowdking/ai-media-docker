@@ -3,10 +3,13 @@ name: CI, Docker Publish & Release
 on:
   push:
     branches: [main]
-    tags: ["v*"]
   pull_request:
     branches: [main]
   workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
   test-and-build:
@@ -19,6 +22,8 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+          cache: "pip"
+          cache-dependency-path: requirements.txt
 
       - name: Install dependencies
         run: pip install -r requirements.txt
@@ -57,14 +62,31 @@ jobs:
           REPO_LOWER=$(echo "${GITHUB_REPOSITORY}" | tr '[:upper:]' '[:lower:]')
           echo "version=${VER}" >> "$GITHUB_OUTPUT"
           echo "repo_lower=${REPO_LOWER}" >> "$GITHUB_OUTPUT"
+
+          TAGS=$(printf '%s\n%s\n%s' \
+            "ghcr.io/${REPO_LOWER}:latest" \
+            "ghcr.io/${REPO_LOWER}:v${VER}" \
+            "ghcr.io/${REPO_LOWER}:${VER}")
+
           if [ -n "$DH_USER" ] && [ -n "$DH_TOKEN" ]; then
             DH_USER_LOWER=$(printf '%s' "$DH_USER" | tr '[:upper:]' '[:lower:]' | tr -d '[:space:]')
             echo "dockerhub_enabled=true" >> "$GITHUB_OUTPUT"
             echo "dh_user_lower=${DH_USER_LOWER}" >> "$GITHUB_OUTPUT"
+            TAGS=$(printf '%s\n%s\n%s\n%s' \
+              "$TAGS" \
+              "${DH_USER_LOWER}/ai-media-server:latest" \
+              "${DH_USER_LOWER}/ai-media-server:v${VER}" \
+              "${DH_USER_LOWER}/ai-media-server:${VER}")
           else
             echo "dockerhub_enabled=false" >> "$GITHUB_OUTPUT"
             echo "dh_user_lower=" >> "$GITHUB_OUTPUT"
           fi
+
+          {
+            echo "tags<<EOF"
+            printf '%s\n' "$TAGS"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Set up Buildx
         uses: docker/setup-buildx-action@v3
@@ -76,16 +98,6 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build & push GHCR image
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          push: true
-          tags: |
-            ghcr.io/${{ steps.meta.outputs.repo_lower }}:latest
-            ghcr.io/${{ steps.meta.outputs.repo_lower }}:v${{ steps.meta.outputs.version }}
-            ghcr.io/${{ steps.meta.outputs.repo_lower }}:${{ steps.meta.outputs.version }}
-
       - name: Log in to Docker Hub (if secrets configured)
         if: steps.meta.outputs.dockerhub_enabled == 'true'
         uses: docker/login-action@v3
@@ -93,16 +105,14 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Build & push Docker Hub image (if secrets configured)
-        if: steps.meta.outputs.dockerhub_enabled == 'true'
+      - name: Build & push container images (GHCR + Docker Hub)
         uses: docker/build-push-action@v6
         with:
           context: .
           push: true
-          tags: |
-            ${{ steps.meta.outputs.dh_user_lower }}/ai-media-server:latest
-            ${{ steps.meta.outputs.dh_user_lower }}/ai-media-server:v${{ steps.meta.outputs.version }}
-            ${{ steps.meta.outputs.dh_user_lower }}/ai-media-server:${{ steps.meta.outputs.version }}
+          tags: ${{ steps.meta.outputs.tags }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
   release:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'

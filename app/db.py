@@ -11,6 +11,7 @@ import os
 import re
 import shutil
 import sqlite3
+import time
 from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -21,8 +22,12 @@ try:
     SHANGHAI_TZ = ZoneInfo("Asia/Shanghai")
 except ZoneInfoNotFoundError:
     SHANGHAI_TZ = timezone(timedelta(hours=8))
+
 DATE_DIR_RE = re.compile(r"^\d{4}-\d{2}-\d{2}(?:-\d{2})?$")
 IMAGE_EXTS = {".png", ".jpg", ".jpeg", ".webp", ".gif"}
+
+DISK_USAGE_CACHE_TTL_SECONDS = 60.0
+_DISK_USAGE_CACHE: dict[str, tuple[float, dict[str, Any]]] = {}
 
 DEFAULT_SETTINGS: dict[str, str] = {
     "wechat_appid": "",
@@ -72,12 +77,15 @@ def ensure_data_dirs() -> dict[str, Path]:
     return dirs
 
 
+def invalidate_disk_usage_cache() -> None:
+    """Clear the cached DATA_DIR disk usage summary."""
+    _DISK_USAGE_CACHE.clear()
+
+
 @contextmanager
 def get_conn() -> Iterator[sqlite3.Connection]:
-    ensure_data_dirs()
     conn = sqlite3.connect(str(get_db_path()), timeout=30.0)
     conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA journal_mode=WAL;")
     conn.execute("PRAGMA busy_timeout=5000;")
     conn.execute("PRAGMA synchronous=NORMAL;")
     conn.execute("PRAGMA foreign_keys=ON;")
@@ -110,6 +118,7 @@ CREATE TABLE IF NOT EXISTS news_items (
 );
 CREATE INDEX IF NOT EXISTS idx_news_date ON news_items(date);
 CREATE INDEX IF NOT EXISTS idx_news_status ON news_items(status);
+CREATE INDEX IF NOT EXISTS idx_news_category ON news_items(category);
 
 CREATE TABLE IF NOT EXISTS topics (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -221,6 +230,7 @@ CREATE TABLE IF NOT EXISTS task_logs (
     created_at TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_task_logs_date ON task_logs(date);
+CREATE INDEX IF NOT EXISTS idx_task_logs_stage_status ON task_logs(stage, status);
 
 CREATE TABLE IF NOT EXISTS settings (
     key TEXT PRIMARY KEY,
@@ -247,8 +257,10 @@ def _ensure_column(conn: sqlite3.Connection, table: str, column: str, col_def: s
 
 def init_db() -> None:
     ensure_data_dirs()
+    invalidate_disk_usage_cache()
     ts = now_iso()
     with get_conn() as conn:
+        conn.execute("PRAGMA journal_mode=WAL;")
         conn.executescript(SCHEMA_SQL)
         # Idempotent schema migrations for existing SQLite databases
         _ensure_column(conn, "draft_tasks", "max_attempts", "INTEGER DEFAULT 5")
@@ -256,6 +268,12 @@ def init_db() -> None:
         _ensure_column(conn, "draft_tasks", "last_error_at", "TEXT DEFAULT ''")
         conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_draft_status_retry ON draft_tasks(status, next_retry_at)"
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_news_category ON news_items(category)"
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_task_logs_stage_status ON task_logs(stage, status)"
         )
 
         for key, val in DEFAULT_SETTINGS.items():
@@ -268,7 +286,7 @@ def init_db() -> None:
             "UPDATE settings SET value = 'draft_only', updated_at = ? WHERE key = 'wechat_publish_mode'",
             (ts,),
         )
-        # Migrate legacy default site names to the unified v1.2.6 brand name
+        # Migrate legacy default site names to the unified brand name
         conn.execute(
             """
             UPDATE settings
@@ -431,6 +449,7 @@ def create_sqlite_backup(trigger: str = "manual") -> dict[str, Any]:
             },
         )
 
+    invalidate_disk_usage_cache()
     return {
         "ok": True,
         "filename": filename,
@@ -476,14 +495,14 @@ def cleanup_old_data(retain_days: int | None = None, trigger: str = "scheduled")
                     pass
         return total
 
-    for kind, bucket_dir, removed_list in (
+    for _kind, bucket_dir, removed_list in (
         ("incoming", dirs["incoming"], removed_incoming),
         ("articles", dirs["articles"], removed_articles),
     ):
         if not bucket_dir.exists():
             continue
         for child in sorted(bucket_dir.iterdir()):
-            if child.is_dir() and DATE_DIR_RE.match(child.name) and child.name[:10] < cutoff_date:
+            if child.is_dir() and DATE_DIR_RE.match(child.name) and child.name < cutoff_date:
                 freed_bytes += _dir_size(child)
                 shutil.rmtree(child, ignore_errors=True)
                 removed_list.append(child.name)
@@ -501,9 +520,15 @@ def cleanup_old_data(retain_days: int | None = None, trigger: str = "scheduled")
             ("articles", "date"),
         )
         for table, col in table_date_cols:
-            cur = conn.execute(f"DELETE FROM {table} WHERE {col} != '' AND substr({col}, 1, 10) < ?", (cutoff_date,))
+            cur = conn.execute(f"DELETE FROM {table} WHERE {col} != '' AND {col} < ?", (cutoff_date,))
             if cur.rowcount:
                 db_deleted[table] = cur.rowcount
+
+        # Clean expired ingest filtered-hash markers
+        conn.execute(
+            "DELETE FROM settings WHERE key LIKE 'filtered_hash:%' AND key < ?",
+            (f"filtered_hash:{cutoff_date}",),
+        )
 
         pruned_backups = prune_backups(conn, backup_retain)
         total_removed = len(removed_incoming) + len(removed_articles) + sum(db_deleted.values()) + pruned_backups
@@ -535,6 +560,7 @@ def cleanup_old_data(retain_days: int | None = None, trigger: str = "scheduled")
     except sqlite3.OperationalError:
         pass
 
+    invalidate_disk_usage_cache()
     return {
         "ok": True,
         "trigger": trigger,
@@ -559,9 +585,16 @@ def format_bytes(num_bytes: int) -> str:
     return "0 B"
 
 
-def get_data_disk_usage() -> dict[str, Any]:
-    """Compute total disk usage (bytes + human string) under DATA_DIR (/data)."""
+def get_data_disk_usage(*, force_refresh: bool = False) -> dict[str, Any]:
+    """Compute total disk usage (bytes + human string) under DATA_DIR (/data) with 60s TTL cache."""
     base = get_data_dir()
+    cache_key = str(base)
+    now = time.monotonic()
+    if not force_refresh:
+        cached = _DISK_USAGE_CACHE.get(cache_key)
+        if cached and (now - cached[0]) < DISK_USAGE_CACHE_TTL_SECONDS:
+            return dict(cached[1])
+
     total_bytes = 0
     if base.exists():
         for p in base.rglob("*"):
@@ -570,10 +603,12 @@ def get_data_disk_usage() -> dict[str, Any]:
                     total_bytes += p.stat().st_size
                 except OSError:
                     pass
-    return {
+    result = {
         "disk_usage_bytes": total_bytes,
         "disk_usage_human": format_bytes(total_bytes),
     }
+    _DISK_USAGE_CACHE[cache_key] = (now, result)
+    return dict(result)
 
 
 def cleanup_pushed_article_media(date_str: str) -> dict[str, Any]:
@@ -617,6 +652,7 @@ def cleanup_pushed_article_media(date_str: str) -> dict[str, Any]:
             (now_iso(), date_str),
         )
 
+    invalidate_disk_usage_cache()
     return {
         "ok": True,
         "date": date_str,
@@ -724,6 +760,7 @@ def delete_article_and_storage(
                 },
             )
 
+    invalidate_disk_usage_cache()
     return {
         "ok": True,
         "date": date_str,

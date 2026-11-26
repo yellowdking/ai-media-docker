@@ -1,4 +1,4 @@
-"""Zero-cost translation, source HTML extraction, and pure-stdlib cover PNG generator.
+"""Zero-cost translation, SSRF-guarded source HTML extraction, and pure-stdlib cover PNG generator.
 
 Hard constraints:
 - Zero paid AI APIs or LLM SDKs.
@@ -8,40 +8,32 @@ Hard constraints:
 
 from __future__ import annotations
 
+import asyncio
+import contextvars
 import hashlib
 import html
+import ipaddress
 import math
 import re
+import socket
 import struct
 import zlib
 from html.parser import HTMLParser
 from pathlib import Path
 from typing import Any
+from urllib.parse import urljoin, urlparse
 
 try:
     import httpx
 except ImportError:  # pragma: no cover
     httpx = None  # type: ignore[assignment]
 
-try:
-    from .wechat import MAX_DIGEST_CHARS, MAX_TITLE_CHARS, sanitize_wechat_html, truncate_utf8_chars
-except ImportError:  # pragma: no cover
-    MAX_TITLE_CHARS = 64
-    MAX_DIGEST_CHARS = 120
-
-    def truncate_utf8_chars(text: str, max_chars: int) -> str:
-        cleaned = re.sub(r"[\r\n\t]+", " ", (text or "")).strip()
-        if max_chars <= 0:
-            return ""
-        if len(cleaned) <= max_chars:
-            return cleaned
-        if max_chars == 1:
-            return cleaned[:1]
-        return cleaned[: max_chars - 1].rstrip() + "…"
-
-    def sanitize_wechat_html(html_content: str) -> str:
-        return (html_content or "").strip()
-
+from .html_utils import (
+    MAX_DIGEST_CHARS,
+    MAX_TITLE_CHARS,
+    sanitize_wechat_html,
+    truncate_utf8_chars,
+)
 
 GOOGLE_GTX_URL = "https://translate.googleapis.com/translate_a/single"
 MYMEMORY_URL = "https://api.mymemory.translated.net/get"
@@ -52,12 +44,20 @@ BROWSER_USER_AGENT = (
 )
 
 MAX_TRANSLATE_CHUNK_CHARS = 1400
+MYMEMORY_MAX_CHUNK_CHARS = 450
 MAX_PARAGRAPHS = 12
 MAX_FETCHED_CHARS = 4500
 MIN_PARAGRAPH_LEN = 30
+MAX_FETCH_BYTES = 2 * 1024 * 1024  # 2 MiB streaming cap
+MAX_FETCH_REDIRECTS = 3
 
 _SKIP_TAGS = {"script", "style", "nav", "footer", "header", "aside", "noscript", "svg"}
 _BLOCK_TAGS = {"p", "h2", "h3", "li"}
+_REDIRECT_STATUS_CODES = {301, 302, 303, 307, 308}
+
+_SHARED_HTTP_CLIENT: contextvars.ContextVar[Any] = contextvars.ContextVar(
+    "_translator_shared_http_client", default=None
+)
 
 
 def cjk_ratio(text: str) -> float:
@@ -136,6 +136,73 @@ def split_text_chunks(text: str, max_chars: int = MAX_TRANSLATE_CHUNK_CHARS) -> 
     return chunks
 
 
+def _is_public_ip_address(ip_str: str) -> bool:
+    try:
+        ip_obj = ipaddress.ip_address(ip_str.strip())
+    except ValueError:
+        return False
+    if isinstance(ip_obj, ipaddress.IPv6Address) and ip_obj.ipv4_mapped is not None:
+        ip_obj = ip_obj.ipv4_mapped
+    if (
+        ip_obj.is_private
+        or ip_obj.is_loopback
+        or ip_obj.is_link_local
+        or ip_obj.is_multicast
+        or ip_obj.is_reserved
+        or ip_obj.is_unspecified
+        or not ip_obj.is_global
+    ):
+        return False
+    return True
+
+
+def _resolve_host_ips(hostname: str, port: int) -> list[str]:
+    infos = socket.getaddrinfo(hostname, port, type=socket.SOCK_STREAM)
+    ips: list[str] = []
+    for info in infos:
+        sockaddr = info[4]
+        if sockaddr and sockaddr[0]:
+            ips.append(str(sockaddr[0]))
+    return ips
+
+
+async def is_safe_fetch_url(url: str) -> bool:
+    """SSRF guard: allow only http(s) URLs whose resolved IPs are all globally routable public IPs."""
+    target = (url or "").strip()
+    if not target:
+        return False
+    try:
+        parsed = urlparse(target)
+    except Exception:
+        return False
+    if parsed.scheme not in ("http", "https"):
+        return False
+    hostname = (parsed.hostname or "").strip().lower().rstrip(".")
+    if not hostname:
+        return False
+    if hostname in ("localhost",) or hostname.endswith(".localhost") or hostname.endswith(".local"):
+        return False
+    try:
+        port = parsed.port or (443 if parsed.scheme == "https" else 80)
+    except ValueError:
+        return False
+
+    # Direct IP literal check
+    try:
+        ipaddress.ip_address(hostname)
+        return _is_public_ip_address(hostname)
+    except ValueError:
+        pass
+
+    try:
+        ips = await asyncio.to_thread(_resolve_host_ips, hostname, port)
+    except OSError:
+        return False
+    if not ips:
+        return False
+    return all(_is_public_ip_address(ip) for ip in ips)
+
+
 async def _translate_chunk_google(client: Any, chunk: str) -> str | None:
     try:
         resp = await client.get(
@@ -165,12 +232,12 @@ async def _translate_chunk_google(client: Any, chunk: str) -> str | None:
         return None
 
 
-async def _translate_chunk_mymemory(client: Any, chunk: str) -> str | None:
+async def _translate_single_mymemory(client: Any, sub_chunk: str) -> str | None:
     try:
         resp = await client.get(
             MYMEMORY_URL,
             params={
-                "q": chunk[:480],
+                "q": sub_chunk,
                 "langpair": "en|zh-CN",
             },
             headers={"User-Agent": BROWSER_USER_AGENT},
@@ -197,7 +264,23 @@ async def _translate_chunk_mymemory(client: Any, chunk: str) -> str | None:
         return None
 
 
-async def translate_to_zh(text: str) -> tuple[str, str]:
+async def _translate_chunk_mymemory(client: Any, chunk: str) -> str | None:
+    """Translate a chunk via MyMemory by sub-chunking to <=450 chars (no silent truncation)."""
+    sub_chunks = split_text_chunks(chunk, max_chars=MYMEMORY_MAX_CHUNK_CHARS)
+    if not sub_chunks:
+        return None
+    translated_parts: list[str] = []
+    for sub in sub_chunks:
+        part = await _translate_single_mymemory(client, sub)
+        if not part:
+            return None
+        translated_parts.append(part)
+    sep = "\n\n" if "\n" in chunk else " "
+    joined = sep.join(translated_parts).strip()
+    return joined or None
+
+
+async def translate_to_zh(text: str, *, client: Any | None = None) -> tuple[str, str]:
     """Translate text to Simplified Chinese using free public endpoints with offline fallback.
 
     Returns (translated_text, mode) where mode is one of:
@@ -208,7 +291,9 @@ async def translate_to_zh(text: str) -> tuple[str, str]:
         return ("", "already_zh")
     if is_mostly_zh(cleaned, threshold=0.30):
         return (cleaned, "already_zh")
-    if httpx is None:
+
+    active_client = client if client is not None else _SHARED_HTTP_CLIENT.get()
+    if active_client is None and httpx is None:
         return (cleaned, "fallback")
 
     chunks = split_text_chunks(cleaned, max_chars=MAX_TRANSLATE_CHUNK_CHARS)
@@ -217,21 +302,28 @@ async def translate_to_zh(text: str) -> tuple[str, str]:
     used_mymemory = False
     used_fallback = False
 
+    async def _run(http_client: Any) -> None:
+        nonlocal used_google, used_mymemory, used_fallback
+        for chunk in chunks:
+            res = await _translate_chunk_google(http_client, chunk)
+            if res:
+                translated_chunks.append(res)
+                used_google = True
+                continue
+            res = await _translate_chunk_mymemory(http_client, chunk)
+            if res:
+                translated_chunks.append(res)
+                used_mymemory = True
+                continue
+            translated_chunks.append(chunk)
+            used_fallback = True
+
     try:
-        async with httpx.AsyncClient(timeout=10.0, follow_redirects=True) as client:
-            for chunk in chunks:
-                res = await _translate_chunk_google(client, chunk)
-                if res:
-                    translated_chunks.append(res)
-                    used_google = True
-                    continue
-                res = await _translate_chunk_mymemory(client, chunk)
-                if res:
-                    translated_chunks.append(res)
-                    used_mymemory = True
-                    continue
-                translated_chunks.append(chunk)
-                used_fallback = True
+        if active_client is not None:
+            await _run(active_client)
+        else:
+            async with httpx.AsyncClient(timeout=10.0, follow_redirects=True) as local_client:
+                await _run(local_client)
     except Exception:
         return (cleaned, "fallback")
 
@@ -325,29 +417,79 @@ def extract_paragraphs_from_html(
     return selected
 
 
-async def fetch_source_paragraphs(url: str) -> list[str]:
-    """Fetch a source webpage and extract meaningful paragraphs; return [] on any error."""
+async def _fetch_html_with_ssrf_guard(http_client: Any, start_url: str) -> str:
+    current_url = start_url
+    headers = {
+        "User-Agent": BROWSER_USER_AGENT,
+        "Accept": "text/html,application/xhtml+xml;q=0.9,*/*;q=0.8",
+        "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
+    }
+
+    for hop in range(MAX_FETCH_REDIRECTS + 1):
+        if not await is_safe_fetch_url(current_url):
+            return ""
+
+        async with http_client.stream(
+            "GET",
+            current_url,
+            headers=headers,
+            follow_redirects=False,
+        ) as resp:
+            if resp.status_code in _REDIRECT_STATUS_CODES:
+                location = (resp.headers.get("location") or "").strip()
+                if not location or hop >= MAX_FETCH_REDIRECTS:
+                    return ""
+                current_url = urljoin(current_url, location)
+                continue
+
+            if resp.status_code != 200:
+                return ""
+            ctype = (resp.headers.get("content-type") or "").lower()
+            if ctype and not any(tok in ctype for tok in ("text/", "html", "xml", "xhtml")):
+                return ""
+
+            chunks: list[bytes] = []
+            total_bytes = 0
+            async for chunk in resp.aiter_bytes():
+                if not chunk:
+                    continue
+                remaining = MAX_FETCH_BYTES - total_bytes
+                if remaining <= 0:
+                    break
+                if len(chunk) > remaining:
+                    chunks.append(chunk[:remaining])
+                    total_bytes += remaining
+                    break
+                chunks.append(chunk)
+                total_bytes += len(chunk)
+
+            raw_bytes = b"".join(chunks)
+            encoding = resp.encoding or "utf-8"
+            try:
+                return raw_bytes.decode(encoding, errors="replace")
+            except LookupError:
+                return raw_bytes.decode("utf-8", errors="replace")
+
+    return ""
+
+
+async def fetch_source_paragraphs(url: str, *, client: Any | None = None) -> list[str]:
+    """Fetch a public source webpage (with SSRF + 2MB cap) and extract meaningful paragraphs."""
     target = (url or "").strip()
     if not target or not (target.startswith("http://") or target.startswith("https://")):
         return []
-    if httpx is None:
+    active_client = client if client is not None else _SHARED_HTTP_CLIENT.get()
+    if active_client is None and httpx is None:
         return []
     try:
-        async with httpx.AsyncClient(timeout=10.0, follow_redirects=True) as client:
-            resp = await client.get(
-                target,
-                headers={
-                    "User-Agent": BROWSER_USER_AGENT,
-                    "Accept": "text/html,application/xhtml+xml;q=0.9,*/*;q=0.8",
-                    "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
-                },
-            )
-            if resp.status_code != 200:
-                return []
-            ctype = (resp.headers.get("content-type") or "").lower()
-            if ctype and not any(tok in ctype for tok in ("text/", "html", "xml", "xhtml")):
-                return []
-            return extract_paragraphs_from_html(resp.text)
+        if active_client is not None:
+            html_text = await _fetch_html_with_ssrf_guard(active_client, target)
+        else:
+            async with httpx.AsyncClient(timeout=10.0, follow_redirects=False) as local_client:
+                html_text = await _fetch_html_with_ssrf_guard(local_client, target)
+        if not html_text:
+            return []
+        return extract_paragraphs_from_html(html_text)
     except Exception:
         return []
 
@@ -379,7 +521,6 @@ def generate_cover_png(dest_path: Path, seed_text: str) -> None:
     seed = hashlib.sha256((seed_text or "cover").encode("utf-8")).digest()
     seed2 = hashlib.sha256(seed + b":palette").digest()
 
-    # Curated rich editorial palettes (deep bg -> mid bg + 2 bright accents)
     palettes = [
         ((15, 23, 42), (30, 64, 175), (56, 189, 248), (129, 140, 248)),
         ((17, 24, 39), (6, 95, 70), (52, 211, 153), (45, 212, 191)),
@@ -390,7 +531,6 @@ def generate_cover_png(dest_path: Path, seed_text: str) -> None:
     ]
     c0, c1, acc1, acc2 = palettes[seed[0] % len(palettes)]
 
-    # Deterministic geometric circles (cx, cy, radius, color, alpha, ring_only)
     circles: list[tuple[float, float, float, tuple[int, int, int], float, bool]] = []
     for idx in range(5):
         off = idx * 4
@@ -402,7 +542,6 @@ def generate_cover_png(dest_path: Path, seed_text: str) -> None:
         ring_only = idx >= 3
         circles.append((cx, cy, rad, col, alpha, ring_only))
 
-    # Deterministic decorative horizontal bars (x0, y0, x1, y1, color, alpha)
     bars: list[tuple[int, int, int, int, tuple[int, int, int], float]] = []
     for idx in range(4):
         bx0 = 18 + (seed2[8 + idx] % 90)
@@ -416,7 +555,6 @@ def generate_cover_png(dest_path: Path, seed_text: str) -> None:
     wave_phase = (seed[22] / 255.0) * math.tau
     wave_amp = 10.0 + (seed[23] / 255.0) * 14.0
 
-    # Precompute row scanlines scaled 4x horizontally and repeated 4x vertically
     scanlines: list[bytes] = []
     inv_w = 1.0 / (small_w - 1)
     inv_h = 1.0 / (small_h - 1)
@@ -424,16 +562,14 @@ def generate_cover_png(dest_path: Path, seed_text: str) -> None:
     for y in range(small_h):
         fy = y * inv_h
         row_buf = bytearray(1 + full_w * 3)
-        row_buf[0] = 0  # PNG filter type 0 (None)
+        row_buf[0] = 0
         pos = 1
 
-        # Pre-filter bars active on this y
         active_bars = [b for b in bars if b[1] <= y <= b[3]]
 
         for x in range(small_w):
             fx = x * inv_w
             t = 0.62 * fx + 0.38 * fy
-            # Smooth diagonal gradient + subtle deterministic sine texture so PNG > 5KB
             wave = math.sin(x * wave_freq + wave_phase + y * 0.03) * 0.5 + 0.5
             micro = (((x * 37 + y * 91 + seed[(x + y) & 31]) & 15) - 7.5) * 0.85
 
@@ -441,7 +577,6 @@ def generate_cover_png(dest_path: Path, seed_text: str) -> None:
             g = c0[1] + (c1[1] - c0[1]) * t + wave * 12.0 + micro
             b = c0[2] + (c1[2] - c0[2]) * t + wave * 14.0 + micro
 
-            # Soft glowing sine ribbon across lower half
             ribbon_y = small_h * 0.68 + math.sin(x * wave_freq + wave_phase) * wave_amp
             d_rib = abs(y - ribbon_y)
             if d_rib < 9.0:
@@ -450,7 +585,6 @@ def generate_cover_png(dest_path: Path, seed_text: str) -> None:
                 g = g * (1.0 - wa) + acc1[1] * wa
                 b = b * (1.0 - wa) + acc1[2] * wa
 
-            # Geometric circles & rings
             for cx, cy, rad, col, alpha, ring_only in circles:
                 dx = x - cx
                 dy = y - cy
@@ -471,14 +605,12 @@ def generate_cover_png(dest_path: Path, seed_text: str) -> None:
                         g = g * (1.0 - aa) + col[1] * aa
                         b = b * (1.0 - aa) + col[2] * aa
 
-            # Geometric accent bars
             for bx0, _by0, bx1, _by1, col, alpha in active_bars:
                 if bx0 <= x <= bx1:
                     r = r * (1.0 - alpha) + col[0] * alpha
                     g = g * (1.0 - alpha) + col[1] * alpha
                     b = b * (1.0 - alpha) + col[2] * alpha
 
-            # Subtle geometric grid dots every 16px
             if (x & 15) == 0 and (y & 15) == 0:
                 r += 24.0
                 g += 28.0
@@ -488,7 +620,6 @@ def generate_cover_png(dest_path: Path, seed_text: str) -> None:
             gb = _clamp_byte(g)
             bb = _clamp_byte(b)
 
-            # 4x horizontal pixel scaling
             for _ in range(scale):
                 row_buf[pos] = rb
                 row_buf[pos + 1] = gb
@@ -496,7 +627,6 @@ def generate_cover_png(dest_path: Path, seed_text: str) -> None:
                 pos += 3
 
         line_bytes = bytes(row_buf)
-        # 4x vertical pixel scaling
         for _ in range(scale):
             scanlines.append(line_bytes)
 
@@ -525,6 +655,10 @@ def _pick_overall_mode(modes: list[str]) -> str:
     return "fallback"
 
 
+async def _empty_summary_task() -> tuple[str, str]:
+    return ("", "already_zh")
+
+
 async def build_translated_article_bundle(
     *,
     article_date: str,
@@ -536,8 +670,8 @@ async def build_translated_article_bundle(
     published_at: str = "",
     author: str = "资讯后台管理系统",
 ) -> dict[str, Any]:
-    """Translate a news item + source paragraphs into a complete WeChat-ready Chinese article bundle."""
-    orig_title = re.sub(r"\s+", " ", (title or "")).strip() or f"{article_date} 资讯编译"
+    """Translate a news item + source paragraphs concurrently into a WeChat-ready Chinese bundle."""
+    orig_title = re.sub(r"\s+", " ", (title or "")).strip() or f"{article_date} 资讯翻译"
     clean_summary = re.sub(r"\s+", " ", (summary or "")).strip()
     clean_url = (url or "").strip()
     clean_source = (source_name or "").strip() or "行业资讯"
@@ -546,23 +680,46 @@ async def build_translated_article_bundle(
 
     modes: list[str] = []
 
-    zh_title_raw, title_mode = await translate_to_zh(orig_title)
+    async def _execute_translation_steps() -> tuple[tuple[str, str], tuple[str, str], list[str], tuple[str, str] | None]:
+        title_task = translate_to_zh(orig_title)
+        summary_task = translate_to_zh(clean_summary) if clean_summary else _empty_summary_task()
+        fetch_task = fetch_source_paragraphs(clean_url)
+        title_res, summary_res, fetched_paras = await asyncio.gather(
+            title_task, summary_task, fetch_task
+        )
+        body_res: tuple[str, str] | None = None
+        if fetched_paras:
+            joined_src = "\n\n".join(fetched_paras)
+            body_res = await translate_to_zh(joined_src)
+        return title_res, summary_res, fetched_paras, body_res
+
+    if httpx is not None:
+        async with httpx.AsyncClient(timeout=10.0) as shared_client:
+            token = _SHARED_HTTP_CLIENT.set(shared_client)
+            try:
+                (zh_title_raw, title_mode), (zh_summary_raw, summary_mode), source_paras, body_res = (
+                    await _execute_translation_steps()
+                )
+            finally:
+                _SHARED_HTTP_CLIENT.reset(token)
+    else:
+        (zh_title_raw, title_mode), (zh_summary_raw, summary_mode), source_paras, body_res = (
+            await _execute_translation_steps()
+        )
+
     modes.append(title_mode)
     zh_title = truncate_utf8_chars(zh_title_raw or orig_title, MAX_TITLE_CHARS)
 
     if clean_summary:
-        zh_summary_raw, summary_mode = await translate_to_zh(clean_summary)
         modes.append(summary_mode)
         zh_summary = re.sub(r"\s+", " ", zh_summary_raw or clean_summary).strip()
     else:
         zh_summary = zh_title
     zh_digest = truncate_utf8_chars(zh_summary, MAX_DIGEST_CHARS)
 
-    source_paras = await fetch_source_paragraphs(clean_url)
     zh_paragraphs: list[str] = []
-    if source_paras:
-        joined_src = "\n\n".join(source_paras)
-        translated_body, body_mode = await translate_to_zh(joined_src)
+    if source_paras and body_res is not None:
+        translated_body, body_mode = body_res
         modes.append(body_mode)
         zh_paragraphs = [
             re.sub(r"\s+", " ", p).strip()
@@ -575,7 +732,6 @@ async def build_translated_article_bundle(
 
     translation_mode = _pick_overall_mode(modes)
 
-    # Key takeaways (2-3 concise points)
     highlights: list[str] = []
     if zh_summary and zh_summary != zh_title:
         highlights.append(zh_summary)
@@ -613,7 +769,7 @@ async def build_translated_article_bundle(
         md_lines.append(f"- 发布时间：{published_at}")
     if clean_url:
         md_lines.append(f"- 原文链接：{clean_url}")
-    md_lines.append("- 编者注：本文由系统自动抓取并编译为中文草稿，仅供人工复核后在公众号后台发布。")
+    md_lines.append("- 编者注：本文由系统自动抓取并翻译为中文草稿，仅供人工复核后在公众号后台发布。")
     article_md = "\n".join(md_lines).strip() + "\n"
 
     # 2. Clean inline-styled WeChat HTML
@@ -635,7 +791,7 @@ async def build_translated_article_bundle(
     if clean_url:
         meta_rows.append(f'<p style="margin:4px 0;word-break:break-all;"><strong>原文链接：</strong>{esc(clean_url)}</p>')
     meta_rows.append(
-        '<p style="margin:8px 0 0 0;color:#64748b;">说明：本文由系统自动编译整理并同步至微信草稿箱，请人工审核后再发布。</p>'
+        '<p style="margin:8px 0 0 0;color:#64748b;">说明：本文由系统自动翻译整理并同步至微信草稿箱，请人工审核后再发布。</p>'
     )
 
     raw_html = (
